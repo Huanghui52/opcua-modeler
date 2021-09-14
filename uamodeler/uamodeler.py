@@ -73,6 +73,7 @@ class ActionsManager:
         self.ui.actionAddVariable.triggered.connect(self.model_mgr.add_variable)
         self.ui.actionAddVariableType.triggered.connect(self.model_mgr.add_variable_type)
         self.ui.actionAddProperty.triggered.connect(self.model_mgr.add_property)
+        # self.ui.DemoButton.clicked.connect(self.model_mgr.demo)
 
         self.disable_all_actions()
 
@@ -348,6 +349,10 @@ class ModelManagerUI(QObject):
         if ok:
             self._model_mgr.add_variable_type(*args)
 
+    @trycatchslot
+    def demo(self):
+        self._model_mgr.plc_model._standard_to_extreme()
+
 
 class UaModeler(QMainWindow):
     """
@@ -550,6 +555,7 @@ def main():
     logging.getLogger().addHandler(handler)
     logging.getLogger("uamodeler").setLevel(logging.INFO)
     logging.getLogger("uawidgets").setLevel(logging.INFO)
+    logging.getLogger("opcua.server.address_space").setLevel(logging.ERROR)
     #logging.getLogger("opcua").setLevel(logging.INFO)  # to enable logging of ua server
     modeler.show()
     sys.exit(app.exec_())

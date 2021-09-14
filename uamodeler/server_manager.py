@@ -76,6 +76,23 @@ class ServerManager(object):
     def load_enums(self):
         return self._backend.load_enums()
 
+    def link_method(self, node, callback):
+        return self._backend.link_method(node, callback)
+
+    def create_custom_event_type(self, idx, name):
+        return self._backend.create_custom_event_type(idx, name)
+
+    def get_event_generator(self, etype, node):
+        return self._backend.get_event_generator(etype, node)
+
+    def get_root_node(self):
+        return self._backend.get_root_node()
+
+    def get_objects_node(self):
+        return self._backend.get_objects_node()
+
+    def get_server_node(self):
+        return self._backend.get_server_node()
 
 class ServerPython(object):
     def __init__(self):
@@ -86,6 +103,7 @@ class ServerPython(object):
 
     def start_server(self, endpoint):
         logger.info("Starting python-opcua server")
+        # 选定后端server类型
         self._server = Server()
         self._server.set_endpoint(endpoint)
         self._server.set_server_name("OpcUa Modeler Server")
@@ -94,6 +112,12 @@ class ServerPython(object):
         self.get_namespace_array = self._server.get_namespace_array
         self.load_type_definitions = self._server.load_type_definitions
         self.load_enums = self._server.load_enums
+        self.link_method = self._server.link_method
+        self.create_custom_event_type = self._server.create_custom_event_type
+        self.get_event_generator = self._server.get_event_generator
+        self.get_root_node = self._server.get_root_node
+        self.get_objects_node = self._server.get_objects_node
+        self.get_server_node = self._server.get_server_node
         # now remove freeopcua namespace, not necessary when modeling and
         # ensures correct idx for exported nodesets
         ns_node = self._server.get_node(ua.NodeId(ua.ObjectIds.Server_NamespaceArray))

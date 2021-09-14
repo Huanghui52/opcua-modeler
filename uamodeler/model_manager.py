@@ -1,10 +1,12 @@
 import logging
 import os
 import xml.etree.ElementTree as Et
+import time
+import threading
+import pandas as pd
 from collections import OrderedDict
 
-
-from PyQt5.QtCore import pyqtSignal, QObject, QSettings
+from PyQt5.QtCore import pyqtSignal, QObject, QSettings, QMutex
 
 from opcua import ua
 from opcua import copy_node
@@ -13,12 +15,14 @@ from opcua.common.instantiate import instantiate
 from opcua.common.ua_utils import data_type_to_variant_type
 from opcua.common.structures import Struct, StructGenerator
 from opcua.common.type_dictionary_buider import DataTypeDictionaryBuilder, get_ua_class
+from opcua.common.methods import uamethod
 
 from uawidgets.utils import trycatchslot
 
 from uamodeler.server_manager import ServerManager
 
 logger = logging.getLogger(__name__)
+demo = QMutex()
 
 
 class _Struct:
@@ -42,6 +46,7 @@ class ModelManager(QObject):
         QObject.__init__(self, modeler)
         self.modeler = modeler
         self.server_mgr = ServerManager(self.modeler.ui.actionUseOpenUa)
+        self.plc_model = PlcModel(self.server_mgr)
         self.new_nodes = []  # the added nodes we will save
         self.current_path = None
         self.settings = QSettings()
@@ -85,7 +90,7 @@ class ModelManager(QObject):
             raise RuntimeError("Model is modified, cannot create new model")
         del (self.new_nodes[:])  # empty list while keeping reference
 
-        endpoint = "opc.tcp://0.0.0.0:48400/freeopcua/uamodeler/"
+        endpoint = 'opc.tcp://0.0.0.0:4840/freeopcua/server/'
         logger.info("Starting server on %s", endpoint)
         self.server_mgr.start_server(endpoint)
 
@@ -123,6 +128,10 @@ class ModelManager(QObject):
         self.modified = False
         self.current_path = path
         self.titleChanged.emit(self.current_path)
+        self.plc_model.create_plc_model()
+        self.plc_model.create_plc_event()
+        self.server_mgr.link_method(self.server_mgr.get_objects_node().get_child("0:Demo"),
+                                    self.plc_model.standard_to_extreme)
 
     def _show_structs(self):
         base_struct = self.server_mgr.get_node(ua.ObjectIds.Structure)
@@ -170,9 +179,8 @@ class ModelManager(QObject):
                 node.set_value_rank(ua.ValueRank.OneDimension)
                 node.set_array_dimensions([1])
 
-
     def _get_datatype_from_string(self, idx, name):
-        #FIXME: this is very heavy and missing recusion, what is the correct way to do that?
+        # FIXME: this is very heavy and missing recusion, what is the correct way to do that?
         for node in self.server_mgr.get_node(ua.ObjectIds.BaseDataType).get_children():
             try:
                 dtype = node.get_child(f'{idx}:{name}')
@@ -232,7 +240,7 @@ class ModelManager(QObject):
         self.server_mgr.export_xml(self.new_nodes, uris, path)
         self.modified = False
         logger.info("%s saved", path)
-        self._show_structs()  #_save_structs has delete our design nodes for structure, we need to recreate them
+        self._show_structs()  # _save_structs has delete our design nodes for structure, we need to recreate them
 
     def save_ua_model(self, path=None):
         path = self._get_path(path)
@@ -292,7 +300,30 @@ class ModelManager(QObject):
         nodeid, bname, otype = args
         new_nodes = instantiate(parent, otype, bname=bname, nodeid=nodeid, dname=ua.LocalizedText(bname.Name))
         self._after_add(new_nodes)
+        # link method
+        self.add_object_link_method(new_nodes)
+        # update root node
+        self.modeler.tree_ui.set_root_node(self.server_mgr.nodes.root)
+        self.modeler.tree_ui.expand_to_node(self.server_mgr.nodes.objects)
+        # trigger event
+        self.add_object_event_trigger()
         return new_nodes
+
+    def add_object_link_method(self, nodes):
+        for node in nodes:
+            if node.get_type_definition() == ua.NodeId.from_string("ns=1;i=2007"):
+                self.plc_model.link_valve_method(node)
+            elif node.get_type_definition() == ua.NodeId.from_string("ns=1;i=2015"):
+                self.plc_model.link_barometer_method(node)
+            elif node.get_type_definition() == ua.NodeId.from_string("ns=1;i=2020"):
+                self.plc_model.link_vacuum_pump_method(node)
+
+    def add_object_event_trigger(self):
+        root = self.server_mgr.get_root_node()
+        etype = root.get_child(["0:Types", "0:EventTypes", "0:BaseEventType", "0:AddObjectEvent"])
+        event_gen = self.server_mgr.get_event_generator(etype, self.server_mgr.get_server_node())
+        event_gen.event.Message = ua.LocalizedText("AddObjectEvent")
+        event_gen.trigger()
 
     def add_data_type(self, *args):
         parent = self.modeler.tree_ui.get_current_node()
@@ -352,7 +383,7 @@ class ModelManager(QObject):
         struct_node = self.server_mgr.get_node(ua.ObjectIds.Structure)
         dict_name = "TypeDictionary"
         idx = 1
-        urn = self.server_mgr.get_namespace_array()[1]
+        urn = self.server_mgr.get_namespace_array()[0]
         to_delete = []
         have_structs = False
         to_add = []
@@ -378,10 +409,12 @@ class ModelManager(QObject):
                     try:
                         dtype = child.get_data_type()
                     except ua.UaError:
-                        logger.warning("could not get data type for node %s, %s, skipping", child, child.get_browse_name())
+                        logger.warning("could not get data type for node %s, %s, skipping", child,
+                                       child.get_browse_name())
                         continue
                     array = False
-                    if isinstance(child.get_value(), list) or child.get_array_dimensions() or child.get_value_rank() != ua.ValueRank.Scalar:
+                    if isinstance(child.get_value(),
+                                  list) or child.get_array_dimensions() or child.get_value_rank() != ua.ValueRank.Scalar:
                         array = True
 
                     dtype_name = Node(node.server, dtype).get_browse_name()
@@ -397,3 +430,214 @@ class ModelManager(QObject):
         for node in to_delete:
             self.delete_node(node, False)
 
+
+class PlcModel(object):
+    def __init__(self, server):
+        self.server_mgr = server
+        self.valve01 = None
+        self.valve02 = None
+        self.barometer01 = None
+        self.pump01 = None
+        self.pump02 = None
+        self.standard_to_extreme_thread = threading.Thread(target=self._standard_to_extreme)
+
+    def create_plc_event(self):
+        self.server_mgr.create_custom_event_type(0, 'AddObjectEvent')
+
+    def create_plc_model(self):
+        # 阀门初始化
+        my_valve_type = (self.server_mgr.nodes.base_object_type.get_child(["0:Valve"])).nodeid
+        self.valve01 = self.server_mgr.nodes.objects.add_object(0, "valve01", my_valve_type)
+        self.valve02 = self.server_mgr.nodes.objects.add_object(0, "valve02", my_valve_type)
+        # 修改阀门状态
+        # valve01_status = self.valve01.get_child("0:ValveStatus")
+        # valve01_status.set_value(ua.StatusEnum.CLOSE)
+        # 修改阀门类型
+        valve01_type = self.valve01.get_child(["0:ValveType"])
+        valve01_type.set_value(ua.ValveTypeEnum.VENT)
+        # method调用
+        self.link_valve_method(self.valve01)
+        self.link_valve_method(self.valve02)
+
+        # 气压计初始化
+        my_barometer_type = (self.server_mgr.nodes.base_object_type.get_child(["0:Barometer"])).nodeid
+        self.barometer01 = self.server_mgr.nodes.objects.add_object(0, "barometer01", my_barometer_type)
+        # barometer02 = self.server_mgr.nodes.objects.add_object(0, "barometer02", my_barometer_type)
+        barometer01_status = self.barometer01.get_child("0:BarometerStatus")
+        barometer01_status.set_value(ua.StatusEnum.CLOSE)
+        # barometer02_status = barometer02.get_child("0:BarometerStatus")
+        # barometer02_status.set_value(ua.StatusEnum.CLOSE)
+        self.link_barometer_method(self.barometer01)
+        # self.link_barometer_method(barometer02)
+
+        # 真空泵初始化
+        my_pump_type = (self.server_mgr.nodes.base_object_type.get_child("0:VacuumPump")).nodeid
+        self.pump01 = self.server_mgr.nodes.objects.add_object(0, "vacuumpump01", my_pump_type)
+        self.pump02 = self.server_mgr.nodes.objects.add_object(0, "vacuumpump02", my_pump_type)
+        self.link_vacuum_pump_method(self.pump01)
+        self.link_vacuum_pump_method(self.pump02)
+
+    @uamethod
+    def startValve(self, parent, gasflow):
+        status = self.server_mgr.get_node(parent).get_child("0:ValveStatus")
+        status_value = status.get_value()
+        if status_value == ua.StatusEnum.CLOSE:
+            status.set_value(ua.StatusEnum.OPEN_PROCESS)
+            # OPEN_PROCESS -> wait -> OPEN
+            start_thread = threading.Thread(target=changeValveStatus, args=(status,))
+            start_thread.setDaemon(True)
+            start_thread.start()
+            config = self.server_mgr.get_node(parent).get_child(["0:ValveConfig", "0:GasFlow"])
+            config.set_value(gasflow, ua.VariantType.Float)
+            return "The valve opens and set the gas flow rate to " + str(gasflow) + " L/m"
+        return "The valve is opened."
+
+    @uamethod
+    def stopValve(self, parent, stopped):
+        status = self.server_mgr.get_node(parent).get_child("0:ValveStatus")
+        status_value = status.get_value()
+        config = self.server_mgr.get_node(parent).get_child(["0:ValveConfig", "0:GasFlow"])
+        config.set_value(0, ua.VariantType.Float)
+        if status_value == ua.StatusEnum.OPEN:
+            status.set_value(ua.StatusEnum.CLOSE_PROCESS)
+            start_valve_thread = threading.Thread(target=changeValveStatus, args=(status,))
+            # start_valve_thread.setDaemon(True)
+            start_valve_thread.start()
+            return "The valve closes and set the gas flow rate to 0 L/m"
+        return "The valve is closed."
+
+    @uamethod
+    def startBarometer(self, parent, sheet):
+        # close -> open
+        status = self.server_mgr.get_node(parent).get_child("0:BarometerStatus")
+        status_value = status.get_value()
+        if status_value == ua.StatusEnum.CLOSE:
+            status.set_value(ua.StatusEnum.OPEN)
+        # start display data
+        start_barometer_thread = threading.Thread(target=self.getData, args=(parent, sheet,))
+        # start_barometer_thread.setDaemon(True)
+        start_barometer_thread.start()
+
+    def getData(self, parent, sheet):
+        data = self.server_mgr.get_node(parent).get_child(["0:BarometerData", "0:Value"])
+        df = pd.read_excel('barometer_data/barometer.xlsx', sheet_name=sheet)
+        for v in df['value']:
+            data.set_value(v, ua.VariantType.Float)
+            time.sleep(1)
+
+    @uamethod
+    def stopBarometer(self, parent, kpa):
+        status = self.server_mgr.get_node(parent).get_child("0:BarometerStatus")
+        status_value = status.get_value()
+        if status_value == ua.StatusEnum.OPEN:
+            status.set_value(ua.StatusEnum.CLOSE)
+
+    @uamethod
+    def startVacuumPump(self, parent, speed):
+        status = self.server_mgr.get_node(parent).get_child("0:VacuumPumpStatus")
+        status_value = status.get_value()
+        if status_value == ua.StatusEnum.CLOSE:
+            status.set_value(ua.StatusEnum.OPEN)
+            config = self.server_mgr.get_node(parent).get_child(["0:VacuumPumpConfig", "0:FREQ"])
+            config.set_value(speed, ua.VariantType.Float)
+            return "The vacuum pump opens and set the gas flow rate to " + str(speed) + " L/m"
+        return "The vacuum pump is opened."
+
+    @uamethod
+    def stopVacuumPump(self, parent, speed):
+        status = self.server_mgr.get_node(parent).get_child("0:VacuumPumpStatus")
+        status_value = status.get_value()
+        if status_value == ua.StatusEnum.OPEN:
+            status.set_value(ua.StatusEnum.CLOSE)
+            return "The vacuum pump opens and set the gas flow rate to 0L/m"
+        return "The vacuum pump is closed."
+
+    def link_valve_method(self, node):
+        node_start = node.get_child("0:startValve")
+        self.server_mgr.link_method(node_start, self.startValve)
+        node_stop = node.get_child("0:stopValve")
+        self.server_mgr.link_method(node_stop, self.stopValve)
+
+    def link_barometer_method(self, node):
+        node_start = node.get_child("0:startBarometer")
+        self.server_mgr.link_method(node_start, self.startBarometer)
+        node_stop = node.get_child("0:stopBarometer")
+        self.server_mgr.link_method(node_stop, self.stopBarometer)
+
+    def link_vacuum_pump_method(self, node):
+        node_start = node.get_child("0:startVacuumPump")
+        self.server_mgr.link_method(node_start, self.startVacuumPump)
+        node_stop = node.get_child("0:stopVacuumPump")
+        self.server_mgr.link_method(node_stop, self.stopVacuumPump)
+
+    def get_nodes_by_type(self, node_type):
+        children = self.server_mgr.get_objects_node().get_children()
+        nodes = []
+        for node in children:
+            if node.get_type_definition == ua.NodeId.from_string(node_type):
+                nodes.append(node)
+        return nodes
+
+    @uamethod
+    def standard_to_extreme(self, parent):
+        # This method returns True just before the run() method starts until just after the run() method terminates.
+        if self.standard_to_extreme_thread.isAlive():
+            return False
+        self.standard_to_extreme_thread = threading.Thread(target=self._standard_to_extreme)
+        self.standard_to_extreme_thread.start()
+        return True
+
+    def _standard_to_extreme(self):
+        # 加入线程锁
+        demo.lock()
+        # 1.关闭所有阀门 & 真空泵
+        self.stopValve(self.valve01.nodeid, ua.Variant(True, ua.VariantType.Boolean))
+        self.stopValve(self.valve02.nodeid, ua.Variant(True, ua.VariantType.Boolean))
+        valve01_status = self.valve01.get_child("0:ValveStatus")
+        valve02_status = self.valve02.get_child("0:ValveStatus")
+        while valve01_status.get_value() != 0 | valve02_status.get_value() != 0:
+            time.sleep(1)
+        self.stopVacuumPump(self.pump01.nodeid, ua.Variant(True, ua.VariantType.Boolean))
+        self.stopVacuumPump(self.pump02.nodeid, ua.Variant(True, ua.VariantType.Boolean))
+        logger.info("close all valves and vacuum pumps.")
+
+        # 2.打开抽气阀门 0->3->1
+        self.startValve(self.valve02.nodeid, ua.Variant(0, ua.VariantType.Float))
+        while self.valve02.get_child("0:ValveStatus").get_value() != 1:
+            time.sleep(1)
+        logger.info("open vent valve.")
+
+        # 3.开启抽气真空泵 0->1
+        self.startVacuumPump(self.pump02.nodeid, ua.Variant(2.0, ua.VariantType.Float))
+        valve02_gas_flow = self.valve02.get_child(["0:ValveConfig", "0:GasFlow"])
+        valve02_gas_flow.set_value(2.0, ua.VariantType.Float)
+        logger.info("open vent vacuum pump.")
+
+        # 4.获取气压计读数（1Hz）
+        self.startBarometer(self.barometer01.nodeid, ua.Variant('Sheet1', ua.VariantType.String))
+        barometer01_data = self.barometer01.get_child(["0:BarometerData", "0:Value"])
+        while barometer01_data.get_value() >= 0.01:
+            logger.info("Current barometer data is %r pa", barometer01_data.get_value())
+            time.sleep(1)
+
+        # 5.关闭抽气阀门
+        self.stopValve(self.valve02.nodeid, ua.Variant(True, ua.VariantType.Boolean))
+        while valve02_status.get_value() != 0:
+            time.sleep(1)
+        logger.info("close vent valve.")
+
+        # 6.关闭抽气真空泵
+        self.stopVacuumPump(self.pump02.nodeid, ua.Variant(True, ua.VariantType.Boolean))
+        logger.info("close vent vacuum pump.")
+        demo.unlock()
+        self.standard_to_extreme_thread
+
+
+def changeValveStatus(status):
+    status_value = status.get_value()
+    if status_value == ua.StatusEnum.OPEN_PROCESS:
+        time.sleep(3)
+        status.set_value(ua.StatusEnum.OPEN)
+    elif status_value == ua.StatusEnum.CLOSE_PROCESS:
+        time.sleep(3)
+        status.set_value(ua.StatusEnum.CLOSE)
