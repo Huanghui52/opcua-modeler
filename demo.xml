@@ -1,0 +1,724 @@
+<?xml version='1.0' encoding='utf-8'?>
+<UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd"
+           xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
+           xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <!-- 节点定义 数据类型定义 -->
+    <NamespaceUris>
+        <Uri>plc.simulator</Uri>
+    </NamespaceUris>
+    <Aliases>
+        <Alias Alias="ValveTypeEnum">ns=1;i=2001</Alias>
+        <Alias Alias="StatusEnum">ns=1;i=2003</Alias>
+    </Aliases>
+
+    <!-- 阀门类型枚举 -->
+    <UADataType BrowseName="0:ValveTypeEnum" NodeId="ns=1;i=2001">
+        <DisplayName>ValveTypeEnum</DisplayName>
+        <References>
+            <Reference IsForward="false" ReferenceType="HasSubtype">i=29</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=2002</Reference>
+        </References>
+        <Definition Name="0:ValveTypeEnum">
+            <Field Name="INLET" Value="0"/>
+            <Field Name="VENT" Value="1"/>
+        </Definition>
+    </UADataType>
+    <UAVariable NodeId="ns=1;i=2002" BrowseName="0:EnumStrings" DataType="LocalizedText" ParentNodeId="ns=1;i=2001">
+        <DisplayName>EnumStrings</DisplayName>
+        <Description>EnumStrings</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2001</Reference>
+        </References>
+        <Value>
+            <uax:ListOfLocalizedText>
+                <uax:LocalizedText>
+                    <uax:Text>INLET</uax:Text>
+                </uax:LocalizedText>
+                <uax:LocalizedText>
+                    <uax:Text>VENT</uax:Text>
+                </uax:LocalizedText>
+            </uax:ListOfLocalizedText>
+        </Value>
+    </UAVariable>
+
+    <!-- 状态 -->
+    <UADataType BrowseName="0:StatusEnum" NodeId="ns=1;i=2003">
+        <DisplayName>StatusEnum</DisplayName>
+        <References>
+            <Reference IsForward="false" ReferenceType="HasSubtype">i=29</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=2004</Reference>
+        </References>
+        <Definition Name="0:StatusEnum">
+            <Field Name="CLOSE" Value="0"/>
+            <Field Name="OPEN" Value="1"/>
+            <Field Name="CLOSE_PROCESS" Value="2"/>
+            <Field Name="OPEN_PROCESS" Value="3"/>
+        </Definition>
+    </UADataType>
+    <UAVariable NodeId="ns=1;i=2004" BrowseName="0:EnumStrings" DataType="LocalizedText" ParentNodeId="ns=1;i=2003">
+        <DisplayName>EnumStrings</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2003</Reference>
+        </References>
+        <Value>
+            <uax:ListOfLocalizedText>
+                <uax:LocalizedText>
+                    <uax:Text>CLOSE</uax:Text>
+                </uax:LocalizedText>
+                <uax:LocalizedText>
+                    <uax:Text>OPEN</uax:Text>
+                </uax:LocalizedText>
+                <uax:LocalizedText>
+                    <uax:Text>CLOSE_PROCESS</uax:Text>
+                </uax:LocalizedText>
+                <uax:LocalizedText>
+                    <uax:Text>OPEN_PROCESS</uax:Text>
+                </uax:LocalizedText>
+            </uax:ListOfLocalizedText>
+        </Value>
+    </UAVariable>
+
+    <!-- 阀门对象类型 -->
+    <UAObjectType NodeId="ns=1;i=2007" BrowseName="0:Valve">
+        <DisplayName>Valve</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference> <!-- BaseObjectType=58 -->
+            <Reference ReferenceType="HasComponent">ns=1;i=2005</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=2009</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=2010</Reference>
+        </References>
+    </UAObjectType>
+
+    <!-- 阀门配置 -->
+    <UAObject NodeId="ns=1;i=2005" BrowseName="0:ValveConfig">
+        <DisplayName>ValveConfig</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=58</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2007</Reference>
+        </References>
+    </UAObject>
+
+    <!-- 阀门气体流速配置 -->
+    <UAVariable NodeId="ns=1;i=2006" ParentNodeId="ns=1;i=2005" BrowseName="0:GasFlow" UserAccessLevel="3"
+                AccessLevel="3" DataType="Float">
+        <DisplayName>GasFlow</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference> <!-- BaseDataVariableType -->
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2005</Reference>
+        </References>
+        <Value>
+            <uax:Float>0.0</uax:Float>
+        </Value>
+    </UAVariable>
+
+    <!-- 阀门状态 -->
+    <UAVariable NodeId="ns=1;i=2009" BrowseName="0:ValveStatus" DataType="StatusEnum" UserAccessLevel="3"
+                AccessLevel="3">
+        <DisplayName>ValveStatus</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2007</Reference>
+        </References>
+        <Value>
+            <uax:Int32>0</uax:Int32>
+        </Value>
+    </UAVariable>
+
+    <!-- 阀门类型 -->
+    <UAVariable NodeId="ns=1;i=2010" BrowseName="0:ValveType" DataType="ValveTypeEnum" UserAccessLevel="3"
+                AccessLevel="3">
+        <DisplayName>ValveType</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2007</Reference>
+        </References>
+        <Value>
+            <uax:Int32>0</uax:Int32>
+        </Value>
+    </UAVariable>
+
+    <!-- 气压计类型 -->
+    <UAObjectType NodeId="ns=1;i=2015" BrowseName="0:Barometer">
+        <DisplayName>Barometer</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference> <!-- BaseObjectType=58 -->
+            <Reference ReferenceType="HasComponent">ns=1;i=2016</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=2019</Reference>
+        </References>
+    </UAObjectType>
+
+    <!-- 气压计数据（t-v） -->
+    <UAObject NodeId="ns=1;i=2016" BrowseName="0:BarometerData">
+        <DisplayName>BarometerData</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=58</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2015</Reference>
+        </References>
+    </UAObject>
+
+    <!-- 气压计数据 时间戳t -->
+    <UAVariable NodeId="ns=1;i=2017" BrowseName="0:TimeStamp" UserAccessLevel="3" AccessLevel="3">
+        <DisplayName>TimeStamp</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2016</Reference>
+        </References>
+    </UAVariable>
+
+    <!-- 气压计数据 气压值 -->
+    <UAVariable NodeId="ns=1;i=2018" BrowseName="0:Value" DataType="Float" UserAccessLevel="3" AccessLevel="3">
+        <DisplayName>Value</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2016</Reference>
+        </References>
+        <Value>
+            <uax:Float>0.0</uax:Float>
+        </Value>
+    </UAVariable>
+
+    <!-- 气压计状态 -->
+    <UAVariable NodeId="ns=1;i=2019" BrowseName="0:BarometerStatus" DataType="StatusEnum" UserAccessLevel="3"
+                AccessLevel="3">
+        <DisplayName>BarometerStatus</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2015</Reference>
+        </References>
+        <Value>
+            <uax:Int32>0</uax:Int32>
+        </Value>
+    </UAVariable>
+
+    <!-- 真空泵类型 -->
+    <UAObjectType NodeId="ns=1;i=2020" BrowseName="0:VacuumPump">
+        <DisplayName>VacuumPump</DisplayName>
+        <References>
+            <Reference ReferenceType="HasSubtype" IsForward="false">i=58</Reference> <!-- BaseObjectType=58 -->
+            <Reference ReferenceType="HasComponent">ns=1;i=2021</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=2024</Reference>
+            <Reference ReferenceType="HasComponent">ns=1;i=2026</Reference>
+        </References>
+    </UAObjectType>
+
+    <!-- 真空泵数据（t-p） -->
+    <UAObject NodeId="ns=1;i=2021" BrowseName="0:VacuumPumpData">
+        <DisplayName>VacuumPumpData</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=58</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2020</Reference>
+        </References>
+    </UAObject>
+
+    <!-- 真空泵数据 时间戳t -->
+    <UAVariable NodeId="ns=1;i=2022" BrowseName="0:TimeStamp" UserAccessLevel="3" AccessLevel="3">
+        <DisplayName>TimeStamp</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2021</Reference>
+        </References>
+    </UAVariable>
+
+    <!-- 真空泵数据 气压值 -->
+    <UAVariable NodeId="ns=1;i=2023" BrowseName="0:Kpa" DataType="Float" UserAccessLevel="3" AccessLevel="3">
+        <DisplayName>Kpa</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2021</Reference>
+        </References>
+        <Value>
+            <uax:Float>0.0</uax:Float>
+        </Value>
+    </UAVariable>
+
+    <!-- 真空泵配置 -->
+    <UAObject NodeId="ns=1;i=2024" BrowseName="0:VacuumPumpConfig">
+        <DisplayName>VacuumPumpConfig</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=58</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2020</Reference>
+        </References>
+    </UAObject>
+
+    <!-- 真空泵数据 频率 -->
+    <UAVariable NodeId="ns=1;i=2025" BrowseName="0:FREQ" UserAccessLevel="3" AccessLevel="3">
+        <DisplayName>FREQ</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2024</Reference>
+        </References>
+    </UAVariable>
+
+    <!-- 真空泵状态 -->
+    <UAVariable NodeId="ns=1;i=2026" BrowseName="0:VacuumPumpStatus" DataType="StatusEnum" UserAccessLevel="3"
+                AccessLevel="3">
+        <DisplayName>VacuumPumpStatus</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=63</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2020</Reference>
+        </References>
+        <Value>
+            <uax:Int32>0</uax:Int32>
+        </Value>
+    </UAVariable>
+
+    <!-- 启动方法 -->
+    <UAMethod NodeId="ns=1;i=2011" BrowseName="0:startValve">
+        <DisplayName>startValve</DisplayName>
+        <References>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=2035</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=2012</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2007</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable NodeId="ns=1;i=2035" BrowseName="0:InputArguments" DataType="i=296" ValueRank="0">
+        <DisplayName>InputArguments</DisplayName>
+        <Description>Gas Flow</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2011</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Gas Flow</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=10</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description>
+                                <uax:Text>Gas Flow Data</uax:Text>
+                                <uax:Locale/>
+                            </uax:Description>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="i=296" NodeId="ns=1;i=2012" ParentNodeId="ns=1;i=2011" BrowseName="0:OutputArguments"
+                ValueRank="0">
+        <DisplayName>OutputArguments</DisplayName>
+        <Description>start result</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2011</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Start Result</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=12</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description>
+                                <uax:Text>start result</uax:Text>
+                                <uax:Locale/>
+                            </uax:Description>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAMethod NodeId="ns=1;i=2027" BrowseName="0:startBarometer">
+        <DisplayName>startBarometer</DisplayName>
+        <References>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=2042</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=2043</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2015</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="i=296" NodeId="ns=1;i=2042" BrowseName="0:InputArguments" ValueRank="0">
+        <DisplayName>InputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2027</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Barometer Sheet</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=12</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description>
+                                <uax:Text>Barometer Data Sheet Name</uax:Text>
+                                <uax:Locale/>
+                            </uax:Description>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="i=296" NodeId="ns=1;i=2043" ParentNodeId="ns=1;i=2027" BrowseName="0:OutputArguments"
+                ValueRank="0">
+        <DisplayName>OutputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2027</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>started</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=12</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description>
+                                <uax:Text/>
+                                <uax:Locale/>
+                            </uax:Description>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAMethod NodeId="ns=1;i=2029" BrowseName="0:startVacuumPump">
+        <DisplayName>startVacuumPump</DisplayName>
+        <References>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=2030</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2020</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="i=296" NodeId="ns=1;i=2046" BrowseName="0:InputArguments" ValueRank="0">
+        <DisplayName>InputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2029</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>VacuumPump Speed</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=10</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description>
+                                <uax:Text>VacuumPump Speed</uax:Text>
+                                <uax:Locale/>
+                            </uax:Description>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="i=296" NodeId="ns=1;i=2030" ParentNodeId="ns=1;i=2029" BrowseName="0:OutputArguments">
+        <DisplayName>OutputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2029</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>started</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=12</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description>
+                                <uax:Text>start result</uax:Text>
+                                <uax:Locale/>
+                            </uax:Description>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+
+    <!-- 停止方法 -->
+    <UAMethod NodeId="ns=1;i=2013" BrowseName="0:stopValve">
+        <DisplayName>stopValve</DisplayName>
+        <References>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=2014</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=2040</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2007</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="i=296" NodeId="ns=1;i=2040" BrowseName="0:InputArguments" ValueRank="0">
+        <DisplayName>InputArguments</DisplayName>
+        <Description>Gas Flow</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2013</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Stop</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=1</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description>
+                                <uax:Text/>
+                                <uax:Locale/>
+                            </uax:Description>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="i=296" NodeId="ns=1;i=2014" ParentNodeId="ns=1;i=2013" BrowseName="0:OutputArguments">
+        <DisplayName>OutputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2013</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Stop Result</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=12</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description>
+                                <uax:Text>Stop result</uax:Text>
+                                <uax:Locale/>
+                            </uax:Description>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAMethod NodeId="ns=1;i=2031" BrowseName="0:stopBarometer">
+        <DisplayName>stopBarometer</DisplayName>
+        <References>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=2032</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2015</Reference>
+        </References>
+    </UAMethod>
+     <UAVariable DataType="i=296" NodeId="ns=1;i=2048" BrowseName="0:InputArguments" ValueRank="0">
+        <DisplayName>InputArguments</DisplayName>
+        <Description>Gas Flow</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2031</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Stop</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=1</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description>
+                                <uax:Text/>
+                                <uax:Locale/>
+                            </uax:Description>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="i=296" NodeId="ns=1;i=2032" ParentNodeId="ns=1;i=2031" BrowseName="0:OutputArguments">
+        <DisplayName>OutputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2031</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Stopped</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=12</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description>
+                                <uax:Text/>
+                                <uax:Locale/>
+                            </uax:Description>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAMethod NodeId="ns=1;i=2033" BrowseName="0:stopVacuumPump">
+        <DisplayName>stopVacuumPump</DisplayName>
+        <References>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty">ns=1;i=2034</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">ns=1;i=2020</Reference>
+        </References>
+    </UAMethod>
+    <UAVariable DataType="i=296" NodeId="ns=1;i=2047" BrowseName="0:InputArguments" ValueRank="0">
+        <DisplayName>InputArguments</DisplayName>
+        <Description>Gas Flow</Description>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2033</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>Stop</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=1</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description>
+                                <uax:Text/>
+                                <uax:Locale/>
+                            </uax:Description>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+    <UAVariable DataType="i=296" NodeId="ns=1;i=2034" ParentNodeId="ns=1;i=2033" BrowseName="0:OutputArguments">
+        <DisplayName>OutputArguments</DisplayName>
+        <References>
+            <Reference ReferenceType="HasTypeDefinition">i=68</Reference>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasProperty" IsForward="false">ns=1;i=2033</Reference>
+        </References>
+        <Value>
+            <uax:ListOfExtensionObject>
+                <uax:ExtensionObject>
+                    <uax:TypeId>
+                        <uax:Identifier>i=297</uax:Identifier>
+                    </uax:TypeId>
+                    <uax:Body>
+                        <uax:Argument>
+                            <uax:Name>stopped</uax:Name>
+                            <uax:DataType>
+                                <uax:Identifier>i=12</uax:Identifier>
+                            </uax:DataType>
+                            <uax:ValueRank>-1</uax:ValueRank>
+                            <uax:ArrayDimensions/>
+                            <uax:Description>
+                                <uax:Text/>
+                                <uax:Locale/>
+                            </uax:Description>
+                        </uax:Argument>
+                    </uax:Body>
+                </uax:ExtensionObject>
+            </uax:ListOfExtensionObject>
+        </Value>
+    </UAVariable>
+
+    <UAMethod NodeId="ns=1;i=2050" BrowseName="0:Demo">
+        <DisplayName>Demo</DisplayName>
+        <References>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=85</Reference>
+        </References>
+    </UAMethod>
+</UANodeSet>
