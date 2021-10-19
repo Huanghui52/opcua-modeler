@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+	<Configuration>
+		<relation BrowseName="valve02" NodeId="ns=0;i=20013">
+			<child BrowseName="pump02" NodeId="ns=0;i=20048"/>
+		</relation>
+		<relation BrowseName="valve01" NodeId="ns=0;i=20002">
+			<child BrowseName="pump01" NodeId="ns=0;i=20035"/>
+		</relation>
+	</Configuration>
