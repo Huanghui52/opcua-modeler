@@ -3,11 +3,11 @@
 import sys
 import os
 import logging
+import time
 
 from PyQt5.QtCore import QTimer, QSettings, QModelIndex, Qt, QCoreApplication, QObject, pyqtSignal
 from PyQt5.QtGui import QIcon, QFont
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog, QMessageBox, QStyledItemDelegate, QMenu, QAction
-
 
 from opcua import ua
 
@@ -23,7 +23,7 @@ from uamodeler.uamodeler_ui import Ui_UaModeler
 from uamodeler.namespace_widget import NamespaceWidget
 from uamodeler.refnodesets_widget import RefNodeSetsWidget
 from uamodeler.model_manager import ModelManager
-
+from uamodeler.configure_node_dialog import ConfigureDialog, DemoSettingDialog
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +73,7 @@ class ActionsManager:
         self.ui.actionAddVariable.triggered.connect(self.model_mgr.add_variable)
         self.ui.actionAddVariableType.triggered.connect(self.model_mgr.add_variable_type)
         self.ui.actionAddProperty.triggered.connect(self.model_mgr.add_property)
-        # self.ui.DemoButton.clicked.connect(self.model_mgr.demo)
+        self.ui.actionConfigure.triggered.connect(self.model_mgr.configure)
 
         self.disable_all_actions()
 
@@ -241,7 +241,9 @@ class ModelManagerUI(QObject):
     def open(self):
         if not self.try_close_model():
             return
-        path, ok = QFileDialog.getOpenFileName(self.modeler, caption="Open OPC UA XML", filter="XML Files (*.xml *.XML *.uamodel)", directory=self._last_model_dir)
+        path, ok = QFileDialog.getOpenFileName(self.modeler, caption="Open OPC UA XML",
+                                               filter="XML Files (*.xml *.XML *.uamodel)",
+                                               directory=self._last_model_dir)
         if not ok:
             return
         if self._last_model_dir != os.path.dirname(path):
@@ -256,7 +258,8 @@ class ModelManagerUI(QObject):
     @trycatchslot
     def import_xml(self):
         last_import_dir = self.settings.value("last_import_dir", ".")
-        path, ok = QFileDialog.getOpenFileName(self.modeler, caption="Import reference OPC UA XML", filter="XML Files (*.xml *.XML)", directory=last_import_dir)
+        path, ok = QFileDialog.getOpenFileName(self.modeler, caption="Import reference OPC UA XML",
+                                               filter="XML Files (*.xml *.XML)", directory=last_import_dir)
         if not ok:
             return
         self.settings.setValue("last_import_dir", last_import_dir)
@@ -267,7 +270,8 @@ class ModelManagerUI(QObject):
         self._save_as()
 
     def _save_as(self):
-        path, ok = QFileDialog.getSaveFileName(self.modeler, caption="Save OPC UA XML", filter="XML Files (*.xml *.XML)")
+        path, ok = QFileDialog.getSaveFileName(self.modeler, caption="Save OPC UA XML",
+                                               filter="XML Files (*.xml *.XML)")
         if ok:
             print("PATH", path)
             if self._last_model_dir != os.path.dirname(path):
@@ -308,7 +312,8 @@ class ModelManagerUI(QObject):
 
     @trycatchslot
     def add_object(self):
-        args, ok = NewUaObjectDialog.getArgs(self.modeler, "Add Object", self._model_mgr.server_mgr, base_node_type=self._model_mgr.server_mgr.nodes.base_object_type)
+        args, ok = NewUaObjectDialog.getArgs(self.modeler, "Add Object", self._model_mgr.server_mgr,
+                                             base_node_type=self._model_mgr.server_mgr.nodes.base_object_type)
         if ok:
             nodes = self._model_mgr.add_object(*args)
             # FIXME: in this particular case we may want to navigate recursively to add ref
@@ -345,13 +350,34 @@ class ModelManagerUI(QObject):
 
     @trycatchslot
     def add_variable_type(self):
-        args, ok = NewUaObjectDialog.getArgs(self.modeler, "Add Variable Type", self._model_mgr.server_mgr, base_node_type=self._model_mgr.server_mgr.get_node(ua.ObjectIds.BaseVariableType))
+        args, ok = NewUaObjectDialog.getArgs(self.modeler, "Add Variable Type", self._model_mgr.server_mgr,
+                                             base_node_type=self._model_mgr.server_mgr.get_node(
+                                                 ua.ObjectIds.BaseVariableType))
         if ok:
             self._model_mgr.add_variable_type(*args)
 
+    # @trycatchslot
+    # def demo(self):
+    #     self._model_mgr.plc_model._standard_to_extreme()
+
     @trycatchslot
-    def demo(self):
-        self._model_mgr.plc_model._standard_to_extreme()
+    def configure(self):
+        valve_nodes = self._model_mgr.plc_model.get_nodes_by_type("ns=1;i=2007")
+        cur = self.modeler.tree_ui.get_current_node()
+        nodes_name = []
+        for node in valve_nodes:
+            temp_name = node.get_browse_name().Name
+            if cur.get_browse_name().Name is not temp_name:
+                nodes_name.append(temp_name)
+        args, ok = ConfigureDialog.getArgs(self.modeler, "Configure Node", self._model_mgr.server_mgr, self._model_mgr.plc_model, nodes_name)
+        if ok:
+            self._model_mgr.configure_node(*args)
+
+    @trycatchslot
+    def demo_start(self):
+        data, ok = DemoSettingDialog.getArgs(self.modeler, "Demo Configure", self._model_mgr.server_mgr)
+        if ok:
+            self._model_mgr.demo(data)
 
 
 class UaModeler(QMainWindow):
@@ -408,10 +434,12 @@ class UaModeler(QMainWindow):
 
         self._recent_files = self.settings.value("recent_files", [])
         self._recent_files_max_count = int(self.settings.value("recent_files_max_count", 10))
-        self._recent_files_acts = [QAction(self, visible=False, triggered=self.open_recent_files) for _ in range(self._recent_files_max_count)]
+        self._recent_files_acts = [QAction(self, visible=False, triggered=self.open_recent_files) for _ in
+                                   range(self._recent_files_max_count)]
         for act in self._recent_files_acts:
             self.ui.menuRecentFiles.addAction(act)
         self._update_recent_files_ui()
+        self.ui.demoButton.clicked.connect(self.model_mgr.demo_start)
 
     def open_recent_files(self):
         if not self.model_mgr.try_close_model():
@@ -480,6 +508,8 @@ class UaModeler(QMainWindow):
         self._contextMenu.addAction(self.ui.actionAddObjectType)
         self._contextMenu.addAction(self.ui.actionAddVariableType)
         self._contextMenu.addAction(self.ui.actionAddDataType)
+        self._contextMenu.addSeparator()
+        self._contextMenu.addAction(self.ui.actionConfigure)
 
     def _show_context_menu_tree(self, position):
         node = self.tree_ui.get_current_node()
@@ -489,7 +519,7 @@ class UaModeler(QMainWindow):
     def _restore_ui_geometri(self):
         self.resize(int(self.settings.value("main_window_width", 800)),
                     int(self.settings.value("main_window_height", 600)))
-        #self.restoreState(self.settings.value("main_window_state", b"", type="QByteArray"))
+        # self.restoreState(self.settings.value("main_window_state", b"", type="QByteArray"))
         self.restoreState(self.settings.value("main_window_state", bytearray()))
         self.ui.splitterLeft.restoreState(self.settings.value("splitter_left", bytearray()))
         self.ui.splitterRight.restoreState(self.settings.value("splitter_right", bytearray()))
@@ -556,7 +586,7 @@ def main():
     logging.getLogger("uamodeler").setLevel(logging.INFO)
     logging.getLogger("uawidgets").setLevel(logging.INFO)
     logging.getLogger("opcua.server.address_space").setLevel(logging.ERROR)
-    #logging.getLogger("opcua").setLevel(logging.INFO)  # to enable logging of ua server
+    # logging.getLogger("opcua").setLevel(logging.INFO)  # to enable logging of ua server
     modeler.show()
     sys.exit(app.exec_())
 

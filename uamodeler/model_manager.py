@@ -4,11 +4,12 @@ import xml.etree.ElementTree as Et
 import time
 import threading
 import pandas as pd
+import ctypes
 from collections import OrderedDict
 
 from PyQt5.QtCore import pyqtSignal, QObject, QSettings, QMutex
 
-from opcua import ua
+from opcua import ua, Client
 from opcua import copy_node
 from opcua import Node
 from opcua.common.instantiate import instantiate
@@ -16,10 +17,15 @@ from opcua.common.ua_utils import data_type_to_variant_type
 from opcua.common.structures import Struct, StructGenerator
 from opcua.common.type_dictionary_buider import DataTypeDictionaryBuilder, get_ua_class
 from opcua.common.methods import uamethod
+from xml.dom.minidom import Document, parse
 
 from uawidgets.utils import trycatchslot
 
 from uamodeler.server_manager import ServerManager
+from uamodeler.xml_util import XmlCreator
+
+from xml.dom.minidom import Document, parse
+import xml.sax
 
 logger = logging.getLogger(__name__)
 demo = QMutex()
@@ -52,6 +58,8 @@ class ModelManager(QObject):
         self.settings = QSettings()
         self.modified = False
         self.modeler.attrs_ui.attr_written.connect(self._attr_written)
+        self.client = UaClient()
+        self.xmlCreator = None
 
     def delete_node(self, node, interactive=True):
         logger.warning("Deleting: %s", node)
@@ -128,10 +136,26 @@ class ModelManager(QObject):
         self.modified = False
         self.current_path = path
         self.titleChanged.emit(self.current_path)
-        self.plc_model.create_plc_model()
+        # self.plc_model.create_plc_model()
+        self.link_xml_method()
         self.plc_model.create_plc_event()
         self.server_mgr.link_method(self.server_mgr.get_objects_node().get_child("0:Demo"),
                                     self.plc_model.standard_to_extreme)
+        # 创建一个和模型对应的xml映射文件 .uamodel后缀文件 是\\
+        model_xml_name = path[path.rfind('/') + 1: len(path)]
+        model_name = model_xml_name[0: model_xml_name.find('.')]
+        relation_xml_name = model_name + "_mapping.xml"
+        self.xmlCreator = XmlCreator(relation_xml_name)
+
+    def link_xml_method(self):
+        xml_nodes = self.server_mgr.get_objects_node().get_children()
+        for node in xml_nodes:
+            if node.get_type_definition() == ua.NodeId.from_string("ns=1;i=2007"):
+                self.plc_model.link_valve_method(node)
+            if node.get_type_definition() == ua.NodeId.from_string("ns=1;i=2015"):
+                self.plc_model.link_barometer_method(node)
+            if node.get_type_definition() == ua.NodeId.from_string("ns=1;i=2020"):
+                self.plc_model.link_vacuum_pump_method(node)
 
     def _show_structs(self):
         base_struct = self.server_mgr.get_node(ua.ObjectIds.Structure)
@@ -212,6 +236,7 @@ class ModelManager(QObject):
         mod_el = root.find("Model")
         dirname = os.path.dirname(path)
         xmlpath = os.path.join(dirname, mod_el.attrib['path'])
+        xmlpath = xmlpath.replace('\\', '/')
         self._open_xml(xmlpath)
         if "current_node" in mod_el.attrib:
             current_node_str = mod_el.attrib['current_node']
@@ -430,6 +455,24 @@ class ModelManager(QObject):
         for node in to_delete:
             self.delete_node(node, False)
 
+    def configure_node(self, *args):
+        bname, nodeid = args
+        current_node = self.modeler.tree_ui.get_current_node()
+        print("parent name:", bname.Name, "child name:", current_node.get_browse_name().Name)
+        self.xmlCreator.create_relation_item(nodeid, bname.Name)
+        self.xmlCreator.add_child_item(nodeid, bname.Name, current_node.nodeid, current_node.get_browse_name().Name)
+        self.xmlCreator.write_xml()
+        logger.info(self.xmlCreator.xml_name + " has updated.")
+
+    def demo(self, data):
+        self.client.disconnect()
+        self.client = UaClient()
+        self.client.connect()
+        parse_result = self.client.parse_xml(self.xmlCreator.xml_name)
+        if not parse_result:
+            return
+        self.client.demo(data)
+
 
 class PlcModel(object):
     def __init__(self, server):
@@ -440,6 +483,8 @@ class PlcModel(object):
         self.pump01 = None
         self.pump02 = None
         self.standard_to_extreme_thread = threading.Thread(target=self._standard_to_extreme)
+        self.settings = QSettings()
+        self.start_barometer_thread = None
 
     def create_plc_event(self):
         self.server_mgr.create_custom_event_type(0, 'AddObjectEvent')
@@ -484,7 +529,7 @@ class PlcModel(object):
         if status_value == ua.StatusEnum.CLOSE:
             status.set_value(ua.StatusEnum.OPEN_PROCESS)
             # OPEN_PROCESS -> wait -> OPEN
-            start_thread = threading.Thread(target=changeValveStatus, args=(status,))
+            start_thread = threading.Thread(target=changeValveStatus, args=(status,), name='startValve')
             start_thread.setDaemon(True)
             start_thread.start()
             config = self.server_mgr.get_node(parent).get_child(["0:ValveConfig", "0:GasFlow"])
@@ -500,7 +545,7 @@ class PlcModel(object):
         config.set_value(0, ua.VariantType.Float)
         if status_value == ua.StatusEnum.OPEN:
             status.set_value(ua.StatusEnum.CLOSE_PROCESS)
-            start_valve_thread = threading.Thread(target=changeValveStatus, args=(status,))
+            start_valve_thread = threading.Thread(target=changeValveStatus, args=(status,), name='stopValve')
             # start_valve_thread.setDaemon(True)
             start_valve_thread.start()
             return "The valve closes and set the gas flow rate to 0 L/m"
@@ -513,10 +558,11 @@ class PlcModel(object):
         status_value = status.get_value()
         if status_value == ua.StatusEnum.CLOSE:
             status.set_value(ua.StatusEnum.OPEN)
-        # start display data
-        start_barometer_thread = threading.Thread(target=self.getData, args=(parent, sheet,))
-        # start_barometer_thread.setDaemon(True)
-        start_barometer_thread.start()
+            # close->open的时候才起读取数据线程
+            # start display data
+            self.start_barometer_thread = threading.Thread(target=self.getData, args=(parent, sheet,), name='barometer')
+            # start_barometer_thread.setDaemon(True)
+            self.start_barometer_thread.start()
 
     def getData(self, parent, sheet):
         data = self.server_mgr.get_node(parent).get_child(["0:BarometerData", "0:Value"])
@@ -531,6 +577,15 @@ class PlcModel(object):
         status_value = status.get_value()
         if status_value == ua.StatusEnum.OPEN:
             status.set_value(ua.StatusEnum.CLOSE)
+            # 杀死读取数据进程
+            self.raise_exception()
+
+    def raise_exception(self):
+        # 使用ctypes强行杀掉线程
+        tid = ctypes.c_long(self.start_barometer_thread.ident)
+        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(SystemExit))
+        if res > 1:
+            ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, 0)
 
     @uamethod
     def startVacuumPump(self, parent, speed):
@@ -574,9 +629,15 @@ class PlcModel(object):
         children = self.server_mgr.get_objects_node().get_children()
         nodes = []
         for node in children:
-            if node.get_type_definition == ua.NodeId.from_string(node_type):
+            if node.get_type_definition() == ua.NodeId.from_string(node_type):
                 nodes.append(node)
         return nodes
+
+    def get_node_id_by_name(self, node_name):
+        children = self.server_mgr.get_objects_node().get_children()
+        for node in children:
+            if node.get_browse_name().Name == node_name:
+                return node.nodeid
 
     @uamethod
     def standard_to_extreme(self, parent):
@@ -641,3 +702,274 @@ def changeValveStatus(status):
     elif status_value == ua.StatusEnum.CLOSE_PROCESS:
         time.sleep(3)
         status.set_value(ua.StatusEnum.CLOSE)
+
+
+def get_node_id_attr(nodeid):
+    return "ns=" + str(nodeid.NamespaceIndex) + ";i=" + str(nodeid.Identifier)
+
+
+class UaClient(object):
+    def __init__(self):
+        self.client = None
+        self.root = None
+        self.barometer01 = None
+        self.valve_handler = None
+        self.barometer_handler = None
+        self.pump_handler = None
+        self.barometer_condition = None
+        self.all_nodes = []
+        self.all_nodes_id = []
+        self.relation_root = []
+        self.is_under_barometer = False
+
+    def connect(self):
+        self.client = Client("opc.tcp://localhost:4840/freeopcua/server/")
+        self.client.connect()
+        self.root = self.client.get_root_node()
+        self.barometer01 = self.get_barometer("barometer01")
+        self.valve_handler = ValveHandler()
+        self.barometer_handler = BarometerHandler()
+        self.pump_handler = VacuumPumpHandler()
+        self.barometer_condition = 0.01
+        # 订阅阀门状态
+        self.subscribe_valve_status()
+        # 订阅气压计数值
+        self.subscribe_barometer_data()
+        # 订阅泵状态
+        self.subscribe_pump_status()
+        # 绑定信号和槽
+        self.valve_handler.valve_status_fired.connect(self.valve_callback)
+        self.barometer_handler.barometer_data_fired.connect(self.barometer_callback)
+        self.pump_handler.pump_status_fired.connect(self.pump_callback)
+        # self.parse_xml()
+
+    def disconnect(self):
+        if self.client is not None:
+            self.client.disconnect()
+
+    # 订阅阀门状态函数
+    def subscribe_valve_status(self):
+        valve_nodes = self.get_all_valves()
+        for valve_node in valve_nodes:
+            self.subscribe_data_change(valve_node.get_child("0:ValveStatus"), self.valve_handler)
+
+    def subscribe_pump_status(self):
+        pump_nodes = self.get_all_pumps()
+        for pump_node in pump_nodes:
+            self.subscribe_data_change(pump_node.get_child("0:VacuumPumpStatus"), self.pump_handler)
+
+    def subscribe_barometer_data(self):
+        barometer_nodes = self.get_all_barometers()
+        for barometer_node in barometer_nodes:
+            self.subscribe_data_change(barometer_node.get_child(["0:BarometerData", "0:Value"]), self.barometer_handler)
+
+    def subscribe_data_change(self, node, handler):
+        data_change_sub = self.client.create_subscription(500, handler)
+        handle = data_change_sub.subscribe_data_change(node)
+        return handle
+
+    def get_valve(self, name):
+        valve_name = "0:" + name
+        return self.root.get_child(["0:Objects", valve_name])
+
+    def get_pump(self, name):
+        pump_name = "0:" + name
+        return self.root.get_child(["0:Objects", pump_name])
+
+    def get_barometer(self, name):
+        barometer_name = "0:" + name
+        return self.root.get_child(["0:Objects", barometer_name])
+
+    def valve_callback(self, node, val):
+        # node是阀门状态
+        status_enum = {
+            "0": "CLOSE",
+            "1": "OPEN",
+            "2": "CLOSE_PROCESS",
+            "3": "OPEN_PROCESS"
+        }
+        logger.info("%s status: %s", node.get_parent().get_browse_name().Name, status_enum.get(str(val)))
+        # 解析xml获取节点映射关系
+        valve_node_id = node.get_parent().nodeid
+        cur_index = self.all_nodes_id.index(get_node_id_attr(valve_node_id)) if get_node_id_attr(
+            valve_node_id) in self.all_nodes_id else -1
+        if cur_index == -1:
+            return
+        cur_mapping = self.all_nodes[cur_index]
+        cur_child_nodes = cur_mapping.child_nodes
+        for child in cur_child_nodes:
+            child_node = self.client.get_node(ua.NodeId.from_string(child.parent_node_id))
+            # child: valve
+            child_name = child_node.get_browse_name().Name
+            if child_node.get_type_definition() == ua.NodeId.from_string("ns=1;i=2007"):
+                # 当前阀门关闭
+                if val == 1:
+                    child_node.call_method("0:startValve", child_node.nodeid)
+                    # logger.info("%s status: OPEN PROCESS", child_name)
+                elif val == 0:
+                    child_node.call_method("0:stopValve", child_node.nodeid)
+                    # logger.info("%s status: CLOSE PROCESS", child_name)
+            # child: pump
+            if child_node.get_type_definition() == ua.NodeId.from_string("ns=1;i=2020"):
+                if val == 1:
+                    child_node.call_method("0:startVacuumPump", child_node.nodeid)
+                    # logger.info("%s status: OPEN", child_name)
+                elif val == 0:
+                    child_node.call_method("0:stopVacuumPump", child_node.nodeid)
+                    # logger.info("%s status: CLOSE", child_name)
+
+    def barometer_callback(self, node, val):
+        # 抽气过程 当气压小于设置值时 关闭抽气阀门和气压计
+        if val < int(self.barometer_condition) and self.is_under_barometer is False:
+            self.is_under_barometer = True
+            # 关闭relation_root中的抽气阀门
+            for valve in self.relation_root:
+                valve_node = self.client.get_node(ua.NodeId.from_string(valve.parent_node_id))
+                if valve_node.get_child("0:ValveType").get_value() == ua.ValveTypeEnum.VENT:
+                    valve_node.call_method("0:stopValve", True)
+            self.barometer01.call_method("0:stopBarometer", True)
+
+    def pump_callback(self, node, val):
+        if val == 1:
+            logger.info("%s status: OPEN", node.get_parent().get_browse_name().Name)
+            self.barometer01.call_method("0:startBarometer", 'Sheet1')
+        else:
+            logger.info("%s status: CLOSE", node.get_parent().get_browse_name().Name)
+
+    def close_all_valves(self):
+        # 关闭所有阀门 & 真空泵
+        for valve in self.get_all_valves():
+            valve.call_method("0:stopValve", True)
+
+    def get_all_valves(self):
+        return self.get_nodes_by_type("ns=1;i=2007")
+
+    def get_all_barometers(self):
+        return self.get_nodes_by_type("ns=1;i=2015")
+
+    def get_all_pumps(self):
+        return self.get_nodes_by_type("ns=1;i=2020")
+
+    def get_all_vent_valves(self):
+        vent_valves = []
+        valves = self.get_all_valves()
+        for valve in valves:
+            if valve.get_child(['0:ValveType']) == ua.ValveTypeEnum.VENT:
+                vent_valves.append(valve)
+        return vent_valves
+
+    def get_nodes_by_type(self, node_type):
+        children = self.client.get_objects_node().get_children()
+        nodes = []
+        for node in children:
+            if node.get_type_definition() == ua.NodeId.from_string(node_type):
+                nodes.append(node)
+        return nodes
+
+    def check_all_pumps_close(self):
+        all_pumps = self.get_all_pumps()
+        for pump in all_pumps:
+            if pump.get_child("0:VacuumPumpStatus").get_value() != 0:
+                return False
+        return True
+
+    def check_all_valves_close(self):
+        all_valves = self.get_all_valves()
+        for valve in all_valves:
+            if valve.get_child("0:ValveStatus").get_value() != 0:
+                return False
+        return True
+
+    def demo(self, barometer_condition):
+        # 1.关闭所有阀门 & 真空泵
+        # 2.打开抽气阀门 0->3->1
+        # 3.开启抽气真空泵 0->1
+        # 4.获取气压计读数（1Hz）
+        # 5.关闭抽气阀门
+        # 6.关闭抽气真空泵
+        self.barometer_condition = barometer_condition
+        if self.check_all_valves_close() & self.check_all_pumps_close():
+            # logger.info("all valves and pumps has been closed.")
+            # 数据订阅打印初始状态
+            time.sleep(1)
+        else:
+            self.close_all_valves()
+            while not (self.check_all_valves_close() & self.check_all_pumps_close()):
+                time.sleep(1)
+
+        for valve in self.relation_root:
+            valve_node = self.client.get_node(ua.NodeId.from_string(valve.parent_node_id))
+            if valve_node.get_child("0:ValveType").get_value() == ua.ValveTypeEnum.VENT:
+                valve_node.call_method("0:startValve", 2.0)
+
+    def parse_xml(self, xml_name):
+        mapping_xml_path = "model_set/" + xml_name
+        if os.path.isfile(mapping_xml_path) is False:
+            logger.info("No such file: '%s'", mapping_xml_path)
+            return False
+        dom_tree = parse(mapping_xml_path)
+        collection = dom_tree.documentElement
+        relations = collection.getElementsByTagName("relation")
+
+        for relation in relations:
+            current_parent_id = relation.getAttribute('NodeId')
+            current_parent = self.get_correct_node(current_parent_id)
+
+            children = relation.getElementsByTagName("child")
+            for child in children:
+                current_child_id = child.getAttribute("NodeId")
+                current_child = self.get_correct_node(current_child_id)
+                # 标记有父节点
+                current_child.has_parent = True
+                current_parent.append_child_nodes(current_child)
+
+        for node in self.all_nodes:
+            if not node.has_parent:
+                self.relation_root.append(node)
+
+        return True
+
+    def get_correct_node(self, cur_id):
+        current_index = self.all_nodes_id.index(cur_id) if cur_id in self.all_nodes_id else -1
+        if current_index == -1:
+            current_mapping = RelationMapping(cur_id, [])
+            self.all_nodes_id.append(cur_id)
+            self.all_nodes.append(current_mapping)
+            return current_mapping
+        else:
+            return self.all_nodes[current_index]
+
+
+class ValveHandler(QObject):
+    # signal: node val
+    valve_status_fired = pyqtSignal(object, int)
+
+    def datachange_notification(self, node, val, data):
+        self.valve_status_fired.emit(node, val)
+
+
+class BarometerHandler(QObject):
+    barometer_data_fired = pyqtSignal(object, int)
+
+    def datachange_notification(self, node, val, data):
+        # print("current barometer01 data: ", val)
+        logger.info("current barometer01 data: %s", val)
+        # if val < 0.01:
+        self.barometer_data_fired.emit(node, val)
+
+
+class VacuumPumpHandler(QObject):
+    pump_status_fired = pyqtSignal(object, int)
+
+    def datachange_notification(self, node, val, data):
+        self.pump_status_fired.emit(node, val)
+
+
+class RelationMapping(object):
+    def __init__(self, parent_id, mapping):
+        self.parent_node_id = parent_id
+        self.child_nodes = mapping
+        self.has_parent = False
+
+    def append_child_nodes(self, child):
+        self.child_nodes.append(child)

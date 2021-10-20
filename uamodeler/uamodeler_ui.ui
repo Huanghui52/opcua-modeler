@@ -68,6 +68,13 @@
          </property>
          <layout class="QVBoxLayout" name="verticalLayout">
           <item>
+           <widget class="QPushButton" name="demoButton">
+            <property name="text">
+             <string>Demo</string>
+            </property>
+           </widget>
+          </item>
+          <item>
            <widget class="QLabel" name="label">
             <property name="text">
              <string>Attributes Editor</string>
@@ -105,6 +112,7 @@
          </layout>
          <zorder>attrView</zorder>
          <zorder>label</zorder>
+         <zorder>demoButton</zorder>
         </widget>
         <widget class="QFrame" name="frame_2">
          <property name="frameShape">
@@ -331,6 +339,11 @@
    </property>
    <property name="toolTip">
     <string>User Open62541 Server</string>
+   </property>
+  </action>
+  <action name="actionConfigure">
+   <property name="text">
+    <string>Configure</string>
    </property>
   </action>
  </widget>
