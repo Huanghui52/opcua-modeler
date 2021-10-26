@@ -87,6 +87,7 @@ class ModelManager(QObject):
         if not force and self.modified:
             raise RuntimeError("Model is modified, use force to close it")
         self.modeler.actions.disable_all_actions()
+        self.client.disconnect()
         self.server_mgr.stop_server()
         self.current_path = None
         self.modified = False
