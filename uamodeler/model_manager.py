@@ -87,7 +87,8 @@ class ModelManager(QObject):
         if not force and self.modified:
             raise RuntimeError("Model is modified, use force to close it")
         self.modeler.actions.disable_all_actions()
-        self.client.disconnect()
+        if self.client.connected:
+            self.client.disconnect()
         self.server_mgr.stop_server()
         self.current_path = None
         self.modified = False
@@ -466,7 +467,8 @@ class ModelManager(QObject):
         logger.info(self.xmlCreator.xml_name + " has updated.")
 
     def demo(self, data):
-        self.client.disconnect()
+        if self.client.connected:
+            self.client.disconnect()
         self.client = UaClient()
         self.client.connect()
         parse_result = self.client.parse_xml(self.xmlCreator.xml_name)
@@ -722,6 +724,7 @@ class UaClient(object):
         self.all_nodes_id = []
         self.relation_root = []
         self.is_under_barometer = False
+        self.connected = False
 
     def connect(self):
         self.client = Client("opc.tcp://localhost:4840/freeopcua/server/")
@@ -743,10 +746,12 @@ class UaClient(object):
         self.barometer_handler.barometer_data_fired.connect(self.barometer_callback)
         self.pump_handler.pump_status_fired.connect(self.pump_callback)
         # self.parse_xml()
+        self.connected = True
 
     def disconnect(self):
         if self.client is not None:
             self.client.disconnect()
+            self.connected = False
 
     # 订阅阀门状态函数
     def subscribe_valve_status(self):
