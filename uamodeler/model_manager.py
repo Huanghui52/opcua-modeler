@@ -509,7 +509,7 @@ class PlcModel(object):
         self.barometer01 = self.server_mgr.nodes.objects.add_object(0, "barometer01", my_barometer_type)
         # barometer02 = self.server_mgr.nodes.objects.add_object(0, "barometer02", my_barometer_type)
         barometer01_status = self.barometer01.get_child("0:BarometerStatus")
-        barometer01_status.set_value(ua.StatusEnum.CLOSE)
+        barometer01_status.set_value(0)
         # barometer02_status = barometer02.get_child("0:BarometerStatus")
         # barometer02_status.set_value(ua.StatusEnum.CLOSE)
         self.link_barometer_method(self.barometer01)
@@ -576,7 +576,7 @@ class PlcModel(object):
         status = self.server_mgr.get_node(parent).get_child("0:BarometerStatus")
         status_value = status.get_value()
         if status_value == ua.StatusEnum.OPEN:
-            status.set_value(ua.StatusEnum.CLOSE)
+            status.set_value(0)
             # 杀死读取数据进程
             self.raise_exception()
 
@@ -603,7 +603,7 @@ class PlcModel(object):
         status = self.server_mgr.get_node(parent).get_child("0:VacuumPumpStatus")
         status_value = status.get_value()
         if status_value == ua.StatusEnum.OPEN:
-            status.set_value(ua.StatusEnum.CLOSE)
+            status.set_value(0)
             return "The vacuum pump opens and set the gas flow rate to 0L/m"
         return "The vacuum pump is closed."
 
@@ -701,7 +701,7 @@ def changeValveStatus(status):
         status.set_value(ua.StatusEnum.OPEN)
     elif status_value == ua.StatusEnum.CLOSE_PROCESS:
         time.sleep(3)
-        status.set_value(ua.StatusEnum.CLOSE)
+        status.set_value(0)
 
 
 def get_node_id_attr(nodeid):
