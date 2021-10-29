@@ -8,12 +8,10 @@ from opcua import ua
 
 from uawidgets.utils import trycatchslot
 
-
 logger = logging.getLogger(__name__)
 
 
 class NamespaceWidget(QObject):
-
     error = pyqtSignal(Exception)
 
     def __init__(self, view):
@@ -26,7 +24,7 @@ class NamespaceWidget(QObject):
         self.view.setItemDelegate(delegate)
         self.node = None
         self.view.header().setSectionResizeMode(1)
-        
+
         self.addNamespaceAction = QAction("Add Namespace", self.model)
         self.addNamespaceAction.triggered.connect(self.add_namespace)
         self.removeNamespaceAction = QAction("Remove Namespace", self.model)
@@ -95,7 +93,6 @@ class NamespaceWidget(QObject):
 
 
 class MyDelegate(QStyledItemDelegate):
-
     error = pyqtSignal(Exception)
     attr_written = pyqtSignal(ua.AttributeIds, ua.DataValue)
 
@@ -131,5 +128,3 @@ class MyDelegate(QStyledItemDelegate):
             uries.append(child.text())
         logger.info("Writting namespace array: %s", uries)
         self.widget.node.set_value(uries)
-
-

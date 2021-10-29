@@ -94,6 +94,7 @@ class ServerManager(object):
     def get_server_node(self):
         return self._backend.get_server_node()
 
+
 class ServerPython(object):
     def __init__(self):
         self._server = None
@@ -169,9 +170,9 @@ class ServerC(object):
     def start_server(self, endpoint):
         self._server = UAServer()
         self._server.endpoint = 48400  # enpoint not supported yet
-        #self._server.endpoint = endpoint
+        # self._server.endpoint = endpoint
         self._server.start()
-        #self._server.set_server_name("OpcUa Modeler Server")
+        # self._server.set_server_name("OpcUa Modeler Server")
         time.sleep(0.2)
         self._client = Client(endpoint)
         self._client.connect()
@@ -183,7 +184,7 @@ class ServerC(object):
         # ensures correct idx for exported nodesets
         ns_node = self._client.get_node(ua.NodeId(ua.ObjectIds.Server_NamespaceArray))
         nss = ns_node.get_value()
-        #ns_node.set_value(nss[1:])
+        # ns_node.set_value(nss[1:])
 
     def stop_server(self):
         if self._server is not None:
@@ -202,4 +203,3 @@ class ServerC(object):
         exp = XmlExporter(self._client)
         exp.build_etree(nodes, uris=uris)
         exp.write_xml(path)
-

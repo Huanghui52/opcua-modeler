@@ -369,7 +369,8 @@ class ModelManagerUI(QObject):
             temp_name = node.get_browse_name().Name
             if cur.get_browse_name().Name is not temp_name:
                 nodes_name.append(temp_name)
-        args, ok = ConfigureDialog.getArgs(self.modeler, "Configure Node", self._model_mgr.server_mgr, self._model_mgr.plc_model, nodes_name)
+        args, ok = ConfigureDialog.getArgs(self.modeler, "Configure Node", self._model_mgr.server_mgr,
+                                           self._model_mgr.plc_model, nodes_name)
         if ok:
             self._model_mgr.configure_node(*args)
 

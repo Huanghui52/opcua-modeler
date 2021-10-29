@@ -5,10 +5,9 @@ import time
 import threading
 import pandas as pd
 import ctypes
+
 from collections import OrderedDict
-
 from PyQt5.QtCore import pyqtSignal, QObject, QSettings, QMutex
-
 from opcua import ua, Client
 from opcua import copy_node
 from opcua import Node
@@ -17,15 +16,10 @@ from opcua.common.ua_utils import data_type_to_variant_type
 from opcua.common.structures import Struct, StructGenerator
 from opcua.common.type_dictionary_buider import DataTypeDictionaryBuilder, get_ua_class
 from opcua.common.methods import uamethod
-from xml.dom.minidom import Document, parse
-
 from uawidgets.utils import trycatchslot
-
 from uamodeler.server_manager import ServerManager
 from uamodeler.xml_util import XmlCreator
-
-from xml.dom.minidom import Document, parse
-import xml.sax
+from xml.dom.minidom import parse
 
 logger = logging.getLogger(__name__)
 demo = QMutex()

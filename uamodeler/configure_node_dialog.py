@@ -1,6 +1,6 @@
 from PyQt5.QtCore import QSettings, Qt
-from PyQt5.QtWidgets import QPushButton, QComboBox, QLabel, QLineEdit, QHBoxLayout, QDialog, QDialogButtonBox, \
-    QVBoxLayout, QCheckBox, QFrame
+from PyQt5.QtWidgets import QComboBox, QLabel, QLineEdit, QHBoxLayout, QDialog, QDialogButtonBox, \
+    QVBoxLayout
 from opcua import ua
 
 
@@ -34,9 +34,6 @@ class ConfigureDialog(QDialog):
         self.nodeComboBox = QComboBox(self)
         for name in names:
             self.nodeComboBox.addItem(name)
-        # valve_nodes = self.plc_model.get_nodes_by_type("ns=1;i=2007")
-        # for node in valve_nodes:
-        #     self.nodeComboBox.addItem(node.get_browse_name().Name)
         self.layout.addWidget(self.nodeComboBox)
 
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, Qt.Horizontal, self)
@@ -86,7 +83,6 @@ class DemoSettingDialog(QDialog):
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, Qt.Horizontal, self)
         self.vlayout.addWidget(self.buttons)
         self.buttons.accepted.connect(self.accept)
-        # self.buttons.accepted.connect(self._store_state)
         self.buttons.rejected.connect(self.reject)
 
     def get_args(self):
