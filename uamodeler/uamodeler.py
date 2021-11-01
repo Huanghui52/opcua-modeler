@@ -375,10 +375,16 @@ class ModelManagerUI(QObject):
             self._model_mgr.configure_node(*args)
 
     @trycatchslot
-    def demo_start(self):
-        data, ok = DemoSettingDialog.getArgs(self.modeler, "Demo Configure", self._model_mgr.server_mgr)
+    def exhaust_demo(self):
+        data, ok = DemoSettingDialog.getArgs(self.modeler, "Exhaust Demo Configure", self._model_mgr.server_mgr)
         if ok:
-            self._model_mgr.demo(data)
+            self._model_mgr.exhaust_demo(data)
+
+    @trycatchslot
+    def intake_demo(self):
+        data, ok = DemoSettingDialog.getArgs(self.modeler, "Intake Demo Configure", self._model_mgr.server_mgr)
+        if ok:
+            self._model_mgr.intake_demo(data)
 
 
 class UaModeler(QMainWindow):
@@ -440,7 +446,8 @@ class UaModeler(QMainWindow):
         for act in self._recent_files_acts:
             self.ui.menuRecentFiles.addAction(act)
         self._update_recent_files_ui()
-        self.ui.demoButton.clicked.connect(self.model_mgr.demo_start)
+        self.ui.Demo1Button.clicked.connect(self.model_mgr.exhaust_demo)
+        self.ui.Demo2Button.clicked.connect(self.model_mgr.intake_demo)
 
     def open_recent_files(self):
         if not self.model_mgr.try_close_model():

@@ -68,9 +68,16 @@
          </property>
          <layout class="QVBoxLayout" name="verticalLayout">
           <item>
-           <widget class="QPushButton" name="demoButton">
+           <widget class="QPushButton" name="Demo1Button">
             <property name="text">
-             <string>Demo</string>
+             <string>Exhaust Control Demo</string>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QPushButton" name="Demo2Button">
+            <property name="text">
+             <string>Intake Control Demo</string>
             </property>
            </widget>
           </item>
@@ -112,7 +119,8 @@
          </layout>
          <zorder>attrView</zorder>
          <zorder>label</zorder>
-         <zorder>demoButton</zorder>
+         <zorder>Demo2Button</zorder>
+         <zorder>Demo1Button</zorder>
         </widget>
         <widget class="QFrame" name="frame_2">
          <property name="frameShape">

@@ -460,7 +460,7 @@ class ModelManager(QObject):
         self.xmlCreator.write_xml()
         logger.info(self.xmlCreator.xml_name + " has updated.")
 
-    def demo(self, data):
+    def exhaust_demo(self, data):
         if self.client.connected:
             self.client.disconnect()
         self.client = UaClient()
@@ -468,7 +468,19 @@ class ModelManager(QObject):
         parse_result = self.client.parse_xml(self.xmlCreator.xml_name)
         if not parse_result:
             return
-        self.client.demo(data)
+        self.client.demoNum = 1
+        self.client.exhaust_demo(data)
+
+    def intake_demo(self, data):
+        if self.client.connected:
+            self.client.disconnect()
+        self.client = UaClient()
+        self.client.connect()
+        parse_result = self.client.parse_xml(self.xmlCreator.xml_name)
+        if not parse_result:
+            return
+        self.client.demoNum = 2
+        self.client.intake_demo(data)
 
 
 class PlcModel(object):
@@ -688,7 +700,6 @@ class PlcModel(object):
         self.stopVacuumPump(self.pump02.nodeid, ua.Variant(True, ua.VariantType.Boolean))
         logger.info("close vent vacuum pump.")
         demo.unlock()
-        self.standard_to_extreme_thread
 
 
 def changeValveStatus(status):
@@ -709,7 +720,8 @@ class UaClient(object):
     def __init__(self):
         self.client = None
         self.root = None
-        self.barometer01 = None
+        # 当前仅支持一个气压计
+        self.barometer = None
         self.valve_handler = None
         self.barometer_handler = None
         self.pump_handler = None
@@ -718,13 +730,14 @@ class UaClient(object):
         self.all_nodes_id = []
         self.relation_root = []
         self.is_under_barometer = False
+        self.is_beyond_barometer = False
         self.connected = False
+        self.demoNum = 0
 
     def connect(self):
         self.client = Client("opc.tcp://localhost:4840/freeopcua/server/")
         self.client.connect()
         self.root = self.client.get_root_node()
-        self.barometer01 = self.get_barometer("barometer01")
         self.valve_handler = ValveHandler()
         self.barometer_handler = BarometerHandler()
         self.pump_handler = VacuumPumpHandler()
@@ -800,39 +813,45 @@ class UaClient(object):
         for child in cur_child_nodes:
             child_node = self.client.get_node(ua.NodeId.from_string(child.parent_node_id))
             # child: valve
-            child_name = child_node.get_browse_name().Name
             if child_node.get_type_definition() == ua.NodeId.from_string("ns=1;i=2007"):
                 # 当前阀门关闭
                 if val == 1:
                     child_node.call_method("0:startValve", child_node.nodeid)
-                    # logger.info("%s status: OPEN PROCESS", child_name)
                 elif val == 0:
                     child_node.call_method("0:stopValve", child_node.nodeid)
-                    # logger.info("%s status: CLOSE PROCESS", child_name)
             # child: pump
             if child_node.get_type_definition() == ua.NodeId.from_string("ns=1;i=2020"):
                 if val == 1:
                     child_node.call_method("0:startVacuumPump", child_node.nodeid)
-                    # logger.info("%s status: OPEN", child_name)
                 elif val == 0:
                     child_node.call_method("0:stopVacuumPump", child_node.nodeid)
-                    # logger.info("%s status: CLOSE", child_name)
 
     def barometer_callback(self, node, val):
         # 抽气过程 当气压小于设置值时 关闭抽气阀门和气压计
-        if val < int(self.barometer_condition) and self.is_under_barometer is False:
-            self.is_under_barometer = True
-            # 关闭relation_root中的抽气阀门
-            for valve in self.relation_root:
-                valve_node = self.client.get_node(ua.NodeId.from_string(valve.parent_node_id))
-                if valve_node.get_child("0:ValveType").get_value() == ua.ValveTypeEnum.VENT:
-                    valve_node.call_method("0:stopValve", True)
-            self.barometer01.call_method("0:stopBarometer", True)
+        if self.demoNum == 1:
+            if val < int(self.barometer_condition) and self.is_under_barometer is False:
+                self.is_under_barometer = True
+                # 关闭relation_root中的抽气阀门
+                for valve in self.relation_root:
+                    valve_node = self.client.get_node(ua.NodeId.from_string(valve.parent_node_id))
+                    if valve_node.get_child("0:ValveType").get_value() == ua.ValveTypeEnum.VENT:
+                        valve_node.call_method("0:stopValve", True)
+                self.barometer.call_method("0:stopBarometer", True)
+
+        # 进气过程 当气压大于设置值时 关闭进气阀门和气压计
+        if self.demoNum == 2:
+            if val > int(self.barometer_condition) and self.is_beyond_barometer is False:
+                self.is_beyond_barometer = True
+                for valve in self.relation_root:
+                    valve_node = self.client.get_node(ua.NodeId.from_string(valve.parent_node_id))
+                    if valve_node.get_child("0:ValveType").get_value() == ua.ValveTypeEnum.INLET:
+                        valve_node.call_method("0:stopValve", True)
+                self.barometer.call_method("0:stopBarometer", True)
 
     def pump_callback(self, node, val):
         if val == 1:
             logger.info("%s status: OPEN", node.get_parent().get_browse_name().Name)
-            self.barometer01.call_method("0:startBarometer", 'Sheet1')
+            self.barometer.call_method("0:startBarometer", 'Sheet' + str(self.demoNum))
         else:
             logger.info("%s status: CLOSE", node.get_parent().get_browse_name().Name)
 
@@ -880,27 +899,57 @@ class UaClient(object):
                 return False
         return True
 
-    def demo(self, barometer_condition):
+    def exhaust_demo(self, barometer_condition):
         # 1.关闭所有阀门 & 真空泵
         # 2.打开抽气阀门 0->3->1
         # 3.开启抽气真空泵 0->1
         # 4.获取气压计读数（1Hz）
         # 5.关闭抽气阀门
         # 6.关闭抽气真空泵
+        barometer_value = self.set_barometer(barometer_condition)
+        if barometer_value < int(self.barometer_condition):
+            logger.info("Current barometer data is under %s pa, don't need to execute this demo.",
+                        self.barometer_condition)
+            return
+        self.check_demo_prepared()
+
+        for valve in self.relation_root:
+            valve_node = self.client.get_node(ua.NodeId.from_string(valve.parent_node_id))
+            if valve_node.get_child("0:ValveType").get_value() == ua.ValveTypeEnum.VENT:
+                valve_node.call_method("0:startValve", 2.0)
+
+    def intake_demo(self, barometer_condition):
+        # 1.关闭所有阀门 & 真空泵
+        # 2.打开进气阀门
+        # 3.打开进气真空泵
+        # 4.获取气压计读数
+        # 5.关闭进气阀门
+        # 6.关闭进气真空泵
+        barometer_value = self.set_barometer(barometer_condition)
+        if barometer_value > int(self.barometer_condition):
+            logger.info("Current barometer data is over %s pa, don't need to execute this demo.",
+                        self.barometer_condition)
+            return
+        self.check_demo_prepared()
+
+        for valve in self.relation_root:
+            valve_node = self.client.get_node(ua.NodeId.from_string(valve.parent_node_id))
+            if valve_node.get_child("0:ValveType").get_value() == ua.ValveTypeEnum.INLET:
+                valve_node.call_method("0:startValve", 2.0)
+
+    def set_barometer(self, barometer_condition):
         self.barometer_condition = barometer_condition
+        self.barometer = self.get_all_barometers().__getitem__(0)
+        return self.barometer.get_child(["0:BarometerData", "0:Value"]).get_value()
+
+    def check_demo_prepared(self):
         if self.check_all_valves_close() & self.check_all_pumps_close():
-            # logger.info("all valves and pumps has been closed.")
             # 数据订阅打印初始状态
             time.sleep(1)
         else:
             self.close_all_valves()
             while not (self.check_all_valves_close() & self.check_all_pumps_close()):
                 time.sleep(1)
-
-        for valve in self.relation_root:
-            valve_node = self.client.get_node(ua.NodeId.from_string(valve.parent_node_id))
-            if valve_node.get_child("0:ValveType").get_value() == ua.ValveTypeEnum.VENT:
-                valve_node.call_method("0:startValve", 2.0)
 
     def parse_xml(self, xml_name):
         mapping_xml_path = "model_set/" + xml_name
@@ -952,9 +1001,7 @@ class BarometerHandler(QObject):
     barometer_data_fired = pyqtSignal(object, int)
 
     def datachange_notification(self, node, val, data):
-        # print("current barometer01 data: ", val)
-        logger.info("current barometer01 data: %s", val)
-        # if val < 0.01:
+        logger.info("Current barometer data: %s pa.", val)
         self.barometer_data_fired.emit(node, val)
 
 
