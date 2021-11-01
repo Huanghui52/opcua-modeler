@@ -1,13 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 	<Configuration>
-		<relation BrowseName="valve03" NodeId="ns=0;i=20061">
-			<child BrowseName="pump02" NodeId="ns=0;i=20048"/>
+		<relation NodeId="ns=0;i=20072" BrowseName="valve04">
+			<child NodeId="ns=0;i=20083" BrowseName="valve05"/>
+			<child NodeId="ns=0;i=20094" BrowseName="valve06"/>
 		</relation>
-		<relation BrowseName="valve02" NodeId="ns=0;i=20013">
-			<child BrowseName="pump01" NodeId="ns=0;i=20035"/>
+		<relation NodeId="ns=0;i=20083" BrowseName="valve05">
+			<child NodeId="ns=0;i=20105" BrowseName="pump03"/>
 		</relation>
-		<relation BrowseName="valve01" NodeId="ns=0;i=20002">
-			<child BrowseName="valve02" NodeId="ns=0;i=20013"/>
-			<child BrowseName="valve03" NodeId="ns=0;i=20061"/>
+		<relation NodeId="ns=0;i=20094" BrowseName="valve06">
+			<child NodeId="ns=0;i=20118" BrowseName="pump04"/>
+		</relation>
+		<relation NodeId="ns=0;i=20002" BrowseName="valve01">
+			<child NodeId="ns=0;i=20013" BrowseName="valve02"/>
+			<child NodeId="ns=0;i=20061" BrowseName="valve03"/>
+		</relation>
+		<relation NodeId="ns=0;i=20013" BrowseName="valve02">
+			<child NodeId="ns=0;i=20035" BrowseName="pump01"/>
+		</relation>
+		<relation NodeId="ns=0;i=20061" BrowseName="valve03">
+			<child NodeId="ns=0;i=20048" BrowseName="pump02"/>
 		</relation>
 	</Configuration>
