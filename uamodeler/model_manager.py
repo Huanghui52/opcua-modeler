@@ -956,7 +956,7 @@ class UaClient(object):
     def parse_xml(self, xml_name):
         mapping_xml_path = "model_set/" + xml_name
         if os.path.isfile(mapping_xml_path) is False:
-            logger.info("No such file: '%s'", mapping_xml_path)
+            logger.info("No such file: '%s', please configure nodes.", mapping_xml_path)
             return False
         dom_tree = parse(mapping_xml_path)
         collection = dom_tree.documentElement
