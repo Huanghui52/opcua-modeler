@@ -81,6 +81,7 @@ class ModelManager(QObject):
         if not force and self.modified:
             raise RuntimeError("Model is modified, use force to close it")
         self.modeler.actions.disable_all_actions()
+        # if client is connected, disconnect it when close current model.
         if self.client.connected:
             self.client.disconnect()
         self.server_mgr.stop_server()
@@ -134,10 +135,11 @@ class ModelManager(QObject):
         self.titleChanged.emit(self.current_path)
         # self.plc_model.create_plc_model()
         self.link_xml_method()
+        # 通过添加对象时触发event订阅，链接demo节点和plc model的函数，通知client端刷新节点
         self.plc_model.create_plc_event()
-        self.server_mgr.link_method(self.server_mgr.get_objects_node().get_child("0:Demo"),
+        self.server_mgr.link_method(self.server_mgr.get_objects_node().get_child("0:AddObjectNotification"),
                                     self.plc_model.standard_to_extreme)
-        # 创建一个和模型对应的xml映射文件 .uamodel后缀文件 是\\
+        # 创建一个和模型对应的mapping.xml映射文件 .uamodel后缀文件 是\\
         model_xml_name = path[path.rfind('/') + 1: len(path)]
         model_name = model_xml_name[0: model_xml_name.find('.')]
         relation_xml_name = model_name + "_mapping.xml"

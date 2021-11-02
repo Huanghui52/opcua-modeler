@@ -1,8 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
 <UANodeSet xmlns="http://opcfoundation.org/UA/2011/03/UANodeSet.xsd" xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
-  <NamespaceUris>
-    <Uri>plc.simulator</Uri>
-  </NamespaceUris>
   <Aliases>
     <Alias Alias="Float">i=10</Alias>
     <Alias Alias="String">i=12</Alias>
@@ -698,8 +695,8 @@
       </uax:ListOfExtensionObject>
     </Value>
   </UAVariable>
-  <UAMethod BrowseName="0:Demo" NodeId="ns=1;i=2050" ParentNodeId="i=85">
-    <DisplayName>Demo</DisplayName>
+  <UAMethod BrowseName="0:AddObjectNotification" NodeId="ns=1;i=2050" ParentNodeId="i=85">
+    <DisplayName>AddObjectNotification</DisplayName>
     <References>
       <Reference IsForward="false" ReferenceType="HasComponent">i=85</Reference>
       <Reference ReferenceType="HasModellingRule">i=78</Reference>

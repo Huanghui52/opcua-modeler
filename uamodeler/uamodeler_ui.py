@@ -196,7 +196,7 @@ class Ui_UaModeler(object):
 
     def retranslateUi(self, UaModeler):
         _translate = QtCore.QCoreApplication.translate
-        UaModeler.setWindowTitle(_translate("UaModeler", "FreeOpcUa Modeler"))
+        UaModeler.setWindowTitle(_translate("UaModeler", "PLC Server Gui"))
         self.Demo1Button.setText(_translate("UaModeler", "Exhaust Control Demo"))
         self.Demo2Button.setText(_translate("UaModeler", "Intake Control Demo"))
         self.label.setText(_translate("UaModeler", "Attributes Editor"))

@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>FreeOpcUa Modeler</string>
+   <string>PLC Server Gui</string>
   </property>
   <property name="windowIcon">
    <iconset>

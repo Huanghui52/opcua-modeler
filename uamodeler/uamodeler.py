@@ -122,6 +122,10 @@ class ActionsManager:
 
         self.ui.actionPaste.setEnabled(True)
 
+        if (typedefinition == ua.NodeId.from_string("ns=1;i=2007")) | \
+                (typedefinition == ua.NodeId.from_string("ns=1;i=2020")):
+            self.ui.actionConfigure.setEnabled(True)
+
         if self.model_mgr.get_current_server().nodes.base_object_type in path:
             self.ui.actionAddObjectType.setEnabled(True)
 
@@ -163,6 +167,7 @@ class ActionsManager:
         self.ui.actionAddVariableType.setEnabled(False)
         self.ui.actionAddObjectType.setEnabled(False)
         self.ui.actionAddMethod.setEnabled(False)
+        self.ui.actionConfigure.setEnabled(False)
 
     def enable_model_actions(self):
         self.ui.actionImport.setEnabled(True)
@@ -534,7 +539,7 @@ class UaModeler(QMainWindow):
         self.ui.splitterCenter.restoreState(self.settings.value("splitter_center", bytearray()))
 
     def update_title(self, path):
-        self.setWindowTitle("FreeOpcUa Modeler " + str(path))
+        self.setWindowTitle("PLC Server Gui " + str(path))
 
     def show_error(self, msg):
         self.ui.statusBar.show()

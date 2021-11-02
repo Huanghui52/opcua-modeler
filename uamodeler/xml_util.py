@@ -6,6 +6,7 @@ import xml.sax
 class XmlCreator:
     def __init__(self, xml_name):
         self.xml_name = xml_name
+        # 如果mapping.xml存在，则解析xml文件成document，如果不存在，则创建新的xml内容
         if os.path.isfile('model_set/' + self.xml_name):
             self.doc = parse('model_set/' + self.xml_name)
         else:

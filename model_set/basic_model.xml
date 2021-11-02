@@ -3,9 +3,6 @@
            xmlns:uax="http://opcfoundation.org/UA/2008/02/Types.xsd"
            xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
     <!-- 节点定义 数据类型定义 -->
-    <NamespaceUris>
-        <Uri>plc.simulator</Uri>
-    </NamespaceUris>
     <Aliases>
         <Alias Alias="ValveTypeEnum">ns=1;i=2001</Alias>
         <Alias Alias="StatusEnum">ns=1;i=2003</Alias>
@@ -713,4 +710,12 @@
             </uax:ListOfExtensionObject>
         </Value>
     </UAVariable>
+
+    <UAMethod NodeId="ns=1;i=2050" BrowseName="0:AddObjectNotification">
+        <DisplayName>AddObjectNotification</DisplayName>
+        <References>
+            <Reference ReferenceType="HasModellingRule">i=78</Reference>
+            <Reference ReferenceType="HasComponent" IsForward="false">i=85</Reference>
+        </References>
+    </UAMethod>
 </UANodeSet>
