@@ -4,7 +4,7 @@ import xml.etree.ElementTree as Et
 import time
 import threading
 import pandas as pd
-import ctypes
+# import ctypes
 
 from collections import OrderedDict
 from PyQt5.QtCore import pyqtSignal, QObject, QSettings, QMutex
@@ -496,6 +496,7 @@ class PlcModel(object):
         self.standard_to_extreme_thread = threading.Thread(target=self._standard_to_extreme)
         self.settings = QSettings()
         self.start_barometer_thread = None
+        self.stop_get_data_flag = False
 
     def create_plc_event(self):
         self.server_mgr.create_custom_event_type(0, 'AddObjectEvent')
@@ -571,16 +572,21 @@ class PlcModel(object):
             status.set_value(ua.StatusEnum.OPEN)
             # close->open的时候才起读取数据线程
             # start display data
-            self.start_barometer_thread = threading.Thread(target=self.getData, args=(parent, sheet,), name='barometer')
+            data = self.server_mgr.get_node(parent).get_child(["0:BarometerData", "0:Value"])
+            df = pd.read_excel('barometer_data/barometer.xlsx', sheet_name=sheet)
+            self.start_barometer_thread = threading.Thread(target=self.getData, args=(data, df,), name='barometer')
             # start_barometer_thread.setDaemon(True)
             self.start_barometer_thread.start()
 
-    def getData(self, parent, sheet):
-        data = self.server_mgr.get_node(parent).get_child(["0:BarometerData", "0:Value"])
-        df = pd.read_excel('barometer_data/barometer.xlsx', sheet_name=sheet)
+    def getData(self, data, df):
+        # data = self.server_mgr.get_node(parent).get_child(["0:BarometerData", "0:Value"])
+        # df = pd.read_excel('barometer_data/barometer.xlsx', sheet_name=sheet).
         for v in df['value']:
-            data.set_value(v, ua.VariantType.Float)
-            time.sleep(1)
+            if not self.stop_get_data_flag:
+                data.set_value(v, ua.VariantType.Float)
+                time.sleep(1)
+            else:
+                return
 
     @uamethod
     def stopBarometer(self, parent, kpa):
@@ -589,14 +595,15 @@ class PlcModel(object):
         if status_value == ua.StatusEnum.OPEN:
             status.set_value(0)
             # 杀死读取数据进程
-            self.raise_exception()
+            # self.raise_exception()
+            self.stop_get_data_flag = True
 
-    def raise_exception(self):
-        # 使用ctypes强行杀掉线程
-        tid = ctypes.c_long(self.start_barometer_thread.ident)
-        res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(SystemExit))
-        if res > 1:
-            ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, 0)
+    # def raise_exception(self):
+    #     # 使用ctypes强行杀掉线程
+    #     tid = ctypes.c_long(self.start_barometer_thread.ident)
+    #     res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(SystemExit))
+    #     if res > 1:
+    #         ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, 0)
 
     @uamethod
     def startVacuumPump(self, parent, speed):
