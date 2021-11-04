@@ -39,7 +39,6 @@ class ConfigureDialog(QDialog):
         self.buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel, Qt.Horizontal, self)
         self.vlayout.addWidget(self.buttons)
         self.buttons.accepted.connect(self.accept)
-        # self.buttons.accepted.connect(self._store_state)
         self.buttons.rejected.connect(self.reject)
 
     def get_args(self):

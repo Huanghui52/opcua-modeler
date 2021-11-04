@@ -4,7 +4,7 @@ import xml.etree.ElementTree as Et
 import time
 import threading
 import pandas as pd
-# import ctypes
+import ctypes
 
 from collections import OrderedDict
 from PyQt5.QtCore import pyqtSignal, QObject, QSettings, QMutex
@@ -463,26 +463,34 @@ class ModelManager(QObject):
         logger.info(self.xmlCreator.xml_name + " has updated.")
 
     def exhaust_demo(self, data):
-        if self.client.connected:
-            self.client.disconnect()
-        self.client = UaClient()
-        self.client.connect()
-        parse_result = self.client.parse_xml(self.xmlCreator.xml_name)
+        parse_result = self.pre_execute_demo()
         if not parse_result:
             return
         self.client.demoNum = 1
         self.client.exhaust_demo(data)
 
     def intake_demo(self, data):
+        parse_result = self.pre_execute_demo()
+        if not parse_result:
+            return
+        self.client.demoNum = 2
+        self.client.intake_demo(data)
+
+    def pre_execute_demo(self):
         if self.client.connected:
             self.client.disconnect()
         self.client = UaClient()
         self.client.connect()
         parse_result = self.client.parse_xml(self.xmlCreator.xml_name)
-        if not parse_result:
-            return
-        self.client.demoNum = 2
-        self.client.intake_demo(data)
+        return parse_result
+
+
+def raise_exception(thread_ident):
+    # 使用ctypes强行杀掉线程
+    tid = ctypes.c_long(thread_ident)
+    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(SystemExit))
+    if res > 1:
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, 0)
 
 
 class PlcModel(object):
@@ -496,7 +504,8 @@ class PlcModel(object):
         self.standard_to_extreme_thread = threading.Thread(target=self._standard_to_extreme)
         self.settings = QSettings()
         self.start_barometer_thread = None
-        self.stop_get_data_flag = False
+        self.start_valve_thread = None
+        self.stop_valve_thread = None
 
     def create_plc_event(self):
         self.server_mgr.create_custom_event_type(0, 'AddObjectEvent')
@@ -506,12 +515,10 @@ class PlcModel(object):
         my_valve_type = (self.server_mgr.nodes.base_object_type.get_child(["0:Valve"])).nodeid
         self.valve01 = self.server_mgr.nodes.objects.add_object(0, "valve01", my_valve_type)
         self.valve02 = self.server_mgr.nodes.objects.add_object(0, "valve02", my_valve_type)
-        # 修改阀门状态
-        # valve01_status = self.valve01.get_child("0:ValveStatus")
-        # valve01_status.set_value(ua.StatusEnum.CLOSE)
         # 修改阀门类型
         valve01_type = self.valve01.get_child(["0:ValveType"])
-        valve01_type.set_value(ua.ValveTypeEnum.VENT)
+        # ua.ValveTypeEnum.VENT
+        valve01_type.set_value(1)
         # method调用
         self.link_valve_method(self.valve01)
         self.link_valve_method(self.valve02)
@@ -519,13 +526,9 @@ class PlcModel(object):
         # 气压计初始化
         my_barometer_type = (self.server_mgr.nodes.base_object_type.get_child(["0:Barometer"])).nodeid
         self.barometer01 = self.server_mgr.nodes.objects.add_object(0, "barometer01", my_barometer_type)
-        # barometer02 = self.server_mgr.nodes.objects.add_object(0, "barometer02", my_barometer_type)
         barometer01_status = self.barometer01.get_child("0:BarometerStatus")
         barometer01_status.set_value(0)
-        # barometer02_status = barometer02.get_child("0:BarometerStatus")
-        # barometer02_status.set_value(ua.StatusEnum.CLOSE)
         self.link_barometer_method(self.barometer01)
-        # self.link_barometer_method(barometer02)
 
         # 真空泵初始化
         my_pump_type = (self.server_mgr.nodes.base_object_type.get_child("0:VacuumPump")).nodeid
@@ -540,10 +543,12 @@ class PlcModel(object):
         status_value = status.get_value()
         if status_value == ua.StatusEnum.CLOSE:
             status.set_value(ua.StatusEnum.OPEN_PROCESS)
+            if self.start_valve_thread is not None:
+                raise_exception(self.start_valve_thread.ident)
             # OPEN_PROCESS -> wait -> OPEN
-            start_thread = threading.Thread(target=changeValveStatus, args=(status,), name='startValve')
-            start_thread.setDaemon(True)
-            start_thread.start()
+            self.start_valve_thread = threading.Thread(target=self.change_valve_status, args=(status,))
+            self.start_valve_thread.setDaemon(True)
+            self.start_valve_thread.start()
             config = self.server_mgr.get_node(parent).get_child(["0:ValveConfig", "0:GasFlow"])
             config.set_value(gasflow, ua.VariantType.Float)
             return "The valve opens and set the gas flow rate to " + str(gasflow) + " L/m"
@@ -557,11 +562,22 @@ class PlcModel(object):
         config.set_value(0, ua.VariantType.Float)
         if status_value == ua.StatusEnum.OPEN:
             status.set_value(ua.StatusEnum.CLOSE_PROCESS)
-            start_valve_thread = threading.Thread(target=changeValveStatus, args=(status,), name='stopValve')
-            # start_valve_thread.setDaemon(True)
-            start_valve_thread.start()
+            if self.stop_valve_thread is not None:
+                raise_exception(self.stop_valve_thread.ident)
+            self.stop_valve_thread = threading.Thread(target=self.change_valve_status, args=(status,))
+            self.stop_valve_thread.setDaemon(True)
+            self.stop_valve_thread.start()
             return "The valve closes and set the gas flow rate to 0 L/m"
         return "The valve is closed."
+
+    def change_valve_status(self, status):
+        status_value = status.get_value()
+        if status_value == ua.StatusEnum.OPEN_PROCESS:
+            time.sleep(3)
+            status.set_value(1)
+        elif status_value == ua.StatusEnum.CLOSE_PROCESS:
+            time.sleep(3)
+            status.set_value(0)
 
     @uamethod
     def startBarometer(self, parent, sheet):
@@ -572,21 +588,16 @@ class PlcModel(object):
             status.set_value(ua.StatusEnum.OPEN)
             # close->open的时候才起读取数据线程
             # start display data
-            data = self.server_mgr.get_node(parent).get_child(["0:BarometerData", "0:Value"])
-            df = pd.read_excel('barometer_data/barometer.xlsx', sheet_name=sheet)
-            self.start_barometer_thread = threading.Thread(target=self.getData, args=(data, df,), name='barometer')
-            # start_barometer_thread.setDaemon(True)
+            self.start_barometer_thread = threading.Thread(target=self.getData, args=(parent, sheet, ))
+            self.start_barometer_thread.setDaemon(True)
             self.start_barometer_thread.start()
 
-    def getData(self, data, df):
-        # data = self.server_mgr.get_node(parent).get_child(["0:BarometerData", "0:Value"])
-        # df = pd.read_excel('barometer_data/barometer.xlsx', sheet_name=sheet).
+    def getData(self, parent, sheet):
+        data = self.server_mgr.get_node(parent).get_child(["0:BarometerData", "0:Value"])
+        df = pd.read_excel('barometer_data/barometer.xlsx', sheet_name=sheet)
         for v in df['value']:
-            if not self.stop_get_data_flag:
-                data.set_value(v, ua.VariantType.Float)
-                time.sleep(1)
-            else:
-                return
+            data.set_value(v, ua.VariantType.Float)
+            time.sleep(1)
 
     @uamethod
     def stopBarometer(self, parent, kpa):
@@ -595,15 +606,7 @@ class PlcModel(object):
         if status_value == ua.StatusEnum.OPEN:
             status.set_value(0)
             # 杀死读取数据进程
-            # self.raise_exception()
-            self.stop_get_data_flag = True
-
-    # def raise_exception(self):
-    #     # 使用ctypes强行杀掉线程
-    #     tid = ctypes.c_long(self.start_barometer_thread.ident)
-    #     res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(SystemExit))
-    #     if res > 1:
-    #         ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, 0)
+            raise_exception(self.start_barometer_thread.ident)
 
     @uamethod
     def startVacuumPump(self, parent, speed):
@@ -709,16 +712,6 @@ class PlcModel(object):
         self.stopVacuumPump(self.pump02.nodeid, ua.Variant(True, ua.VariantType.Boolean))
         logger.info("close vent vacuum pump.")
         demo.unlock()
-
-
-def changeValveStatus(status):
-    status_value = status.get_value()
-    if status_value == ua.StatusEnum.OPEN_PROCESS:
-        time.sleep(3)
-        status.set_value(ua.StatusEnum.OPEN)
-    elif status_value == ua.StatusEnum.CLOSE_PROCESS:
-        time.sleep(3)
-        status.set_value(0)
 
 
 def get_node_id_attr(nodeid):
