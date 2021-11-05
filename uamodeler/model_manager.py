@@ -736,6 +736,7 @@ class UaClient(object):
         self.all_nodes = []
         self.all_nodes_id = []
         self.relation_root = []
+        self.subscriptions = []
         self.is_under_barometer = False
         self.is_beyond_barometer = False
         self.connected = False
@@ -759,10 +760,10 @@ class UaClient(object):
         self.valve_handler.valve_status_fired.connect(self.valve_callback)
         self.barometer_handler.barometer_data_fired.connect(self.barometer_callback)
         self.pump_handler.pump_status_fired.connect(self.pump_callback)
-        # self.parse_xml()
         self.connected = True
 
     def disconnect(self):
+        self.delete_all_subscription()
         if self.client is not None:
             self.client.disconnect()
             self.connected = False
@@ -786,7 +787,12 @@ class UaClient(object):
     def subscribe_data_change(self, node, handler):
         data_change_sub = self.client.create_subscription(800, handler)
         handle = data_change_sub.subscribe_data_change(node)
+        self.subscriptions.append(data_change_sub)
         return handle
+
+    def delete_all_subscription(self):
+        for sub in self.subscriptions:
+            sub.delete()
 
     def get_valve(self, name):
         valve_name = "0:" + name
