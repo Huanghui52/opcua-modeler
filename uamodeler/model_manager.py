@@ -4,7 +4,6 @@ import xml.etree.ElementTree as Et
 import time
 import threading
 import pandas as pd
-import ctypes
 import faulthandler
 
 from collections import OrderedDict
@@ -488,14 +487,6 @@ class ModelManager(QObject):
         return parse_result
 
 
-def raise_exception(thread_ident):
-    # 使用ctypes强行杀掉线程
-    tid = ctypes.c_long(thread_ident)
-    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(SystemExit))
-    if res > 1:
-        ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, 0)
-
-
 def change_valve_status(status):
     status_value = status.get_value()
     if status_value == ua.StatusEnum.OPEN_PROCESS:
@@ -504,6 +495,36 @@ def change_valve_status(status):
     elif status_value == ua.StatusEnum.CLOSE_PROCESS:
         time.sleep(3)
         status.set_value(0)
+
+
+class ChangeValveStatus(threading.Thread):
+    def __init__(self, status):
+        threading.Thread.__init__(self)
+        self.status = status
+
+    def run(self):
+        time.sleep(3)
+        status_value = self.status.get_value()
+        if status_value == ua.StatusEnum.OPEN_PROCESS:
+            self.status.set_value(1)
+        elif status_value == ua.StatusEnum.CLOSE_PROCESS:
+            self.status.set_value(0)
+
+
+class BarometerDataThread(threading.Thread):
+    def __init__(self, barometer_value, data, stop_flag):
+        threading.Thread.__init__(self)
+        self.barometer_value = barometer_value
+        self.data = data
+        self.stop_flag = stop_flag
+
+    def run(self):
+        for v in self.data['value']:
+            if not self.stop_flag:
+                self.barometer_value.set_value(v, ua.VariantType.Float)
+                time.sleep(1)
+            else:
+                return
 
 
 class PlcModel(object):
@@ -556,9 +577,11 @@ class PlcModel(object):
         if status_value == ua.StatusEnum.CLOSE:
             status.set_value(ua.StatusEnum.OPEN_PROCESS)
             # OPEN_PROCESS -> wait -> OPEN
-            start_valve_thread = threading.Thread(target=change_valve_status, args=(status,))
-            start_valve_thread.setDaemon(True)
+            start_valve_thread = ChangeValveStatus(status)
             start_valve_thread.start()
+            # start_valve_thread = threading.Thread(target=change_valve_status, args=(status,))
+            # start_valve_thread.setDaemon(True)
+            # start_valve_thread.start()
             config = self.server_mgr.get_node(parent).get_child(["0:ValveConfig", "0:GasFlow"])
             config.set_value(gasflow, ua.VariantType.Float)
             return "The valve opens and set the gas flow rate to " + str(gasflow) + " L/m"
@@ -572,9 +595,11 @@ class PlcModel(object):
         config.set_value(0, ua.VariantType.Float)
         if status_value == ua.StatusEnum.OPEN:
             status.set_value(ua.StatusEnum.CLOSE_PROCESS)
-            stop_valve_thread = threading.Thread(target=change_valve_status, args=(status,))
-            stop_valve_thread.setDaemon(True)
+            stop_valve_thread = ChangeValveStatus(status)
             stop_valve_thread.start()
+            # stop_valve_thread = threading.Thread(target=change_valve_status, args=(status,))
+            # stop_valve_thread.setDaemon(True)
+            # stop_valve_thread.start()
             return "The valve closes and set the gas flow rate to 0 L/m"
         return "The valve is closed."
 
@@ -587,21 +612,23 @@ class PlcModel(object):
             status.set_value(ua.StatusEnum.OPEN)
             # close->open的时候才起读取数据线程
             # start display data
-            data = self.server_mgr.get_node(parent).get_child(["0:BarometerData", "0:Value"])
-            df = pd.read_excel('barometer_data/barometer.xlsx', sheet_name=sheet)
-            self.start_barometer_thread = threading.Thread(target=self.getData, args=(data, df, ))
-            self.start_barometer_thread.setDaemon(True)
-            self.start_barometer_thread.start()
+            value = self.server_mgr.get_node(parent).get_child(["0:BarometerData", "0:Value"])
+            data = pd.read_excel('barometer_data/barometer.xlsx', sheet_name=sheet)
+            start_barometer_thread = BarometerDataThread(value, data, self.stop_barometer_flag)
+            start_barometer_thread.start()
+            # self.start_barometer_thread = threading.Thread(target=self.getData, args=(data, df, ))
+            # self.start_barometer_thread.setDaemon(True)
+            # self.start_barometer_thread.start()
 
-    def getData(self, data, df):
+    # def getData(self, data, df):
         # data = self.server_mgr.get_node(parent).get_child(["0:BarometerData", "0:Value"])
-        # df = pd.read_excel('barometer_data/barometer.xlsx', sheet_name=sheet)
-        for v in df['value']:
-            if not self.stop_barometer_flag:
-                data.set_value(v, ua.VariantType.Float)
-                time.sleep(1)
-            else:
-                return
+         # df = pd.read_excel('barometer_data/barometer.xlsx', sheet_name=sheet)
+        # for v in df['value']:
+        #     if not self.stop_barometer_flag:
+        #         data.set_value(v, ua.VariantType.Float)
+        #         time.sleep(1)
+        #     else:
+        #         return
 
     @uamethod
     def stopBarometer(self, parent, kpa):
@@ -785,7 +812,7 @@ class UaClient(object):
             self.subscribe_data_change(barometer_node.get_child(["0:BarometerData", "0:Value"]), self.barometer_handler)
 
     def subscribe_data_change(self, node, handler):
-        data_change_sub = self.client.create_subscription(800, handler)
+        data_change_sub = self.client.create_subscription(500, handler)
         handle = data_change_sub.subscribe_data_change(node)
         self.subscriptions.append(data_change_sub)
         return handle
