@@ -505,18 +505,27 @@ def change_valve_status(status):
         status.set_value(0)
 
 
-class ChangeValveStatus(threading.Thread):
+class StartValveThread(threading.Thread):
     def __init__(self, status):
         threading.Thread.__init__(self)
         self.status = status
 
     def run(self):
+        # OPEN_PROCESS -> wait -> OPEN
+        self.status.set_value(3)
         time.sleep(3)
-        status_value = self.status.get_value()
-        if status_value == ua.StatusEnum.OPEN_PROCESS:
-            self.status.set_value(1)
-        elif status_value == ua.StatusEnum.CLOSE_PROCESS:
-            self.status.set_value(0)
+        self.status.set_value(1)
+
+
+class StopValveThread(threading.Thread):
+    def __init__(self, status):
+        threading.Thread.__init__(self)
+        self.status = status
+
+    def run(self):
+        self.status.set_value(2)
+        time.sleep(3)
+        self.status.set_value(0)
 
 
 class BarometerDataThread(threading.Thread):
@@ -578,9 +587,7 @@ class PlcModel(object):
         status = self.server_mgr.get_node(parent).get_child("0:ValveStatus")
         status_value = status.get_value()
         if status_value == ua.StatusEnum.CLOSE:
-            status.set_value(ua.StatusEnum.OPEN_PROCESS)
-            # OPEN_PROCESS -> wait -> OPEN
-            start_valve_thread = ChangeValveStatus(status)
+            start_valve_thread = StartValveThread(status)
             start_valve_thread.start()
             config = self.server_mgr.get_node(parent).get_child(["0:ValveConfig", "0:GasFlow"])
             config.set_value(gasflow, ua.VariantType.Float)
@@ -594,8 +601,7 @@ class PlcModel(object):
         config = self.server_mgr.get_node(parent).get_child(["0:ValveConfig", "0:GasFlow"])
         config.set_value(0, ua.VariantType.Float)
         if status_value == ua.StatusEnum.OPEN:
-            status.set_value(ua.StatusEnum.CLOSE_PROCESS)
-            stop_valve_thread = ChangeValveStatus(status)
+            stop_valve_thread = StopValveThread(status)
             stop_valve_thread.start()
             return "The valve closes and set the gas flow rate to 0 L/m"
         return "The valve is closed."
