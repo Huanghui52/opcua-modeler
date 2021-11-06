@@ -512,8 +512,8 @@ class StartValveThread(threading.Thread):
 
     def run(self):
         # OPEN_PROCESS -> wait -> OPEN
-        self.status.set_value(3)
-        time.sleep(3)
+        # self.status.set_value(3)
+        # time.sleep(3)
         self.status.set_value(1)
 
 
@@ -587,12 +587,20 @@ class PlcModel(object):
         status = self.server_mgr.get_node(parent).get_child("0:ValveStatus")
         status_value = status.get_value()
         if status_value == ua.StatusEnum.CLOSE:
-            start_valve_thread = StartValveThread(status)
+            status.set_value(3)
+            start_valve_thread = threading.Timer(3, self._start_valve, args=(status,))
+            # start_valve_thread = StartValveThread(status)
             start_valve_thread.start()
             config = self.server_mgr.get_node(parent).get_child(["0:ValveConfig", "0:GasFlow"])
             config.set_value(gasflow, ua.VariantType.Float)
             return "The valve opens and set the gas flow rate to " + str(gasflow) + " L/m"
         return "The valve is opened."
+
+    def _start_valve(self, status):
+        status.set_value(1)
+
+    def _stop_valve(self, status):
+        status.set_value(0)
 
     @uamethod
     def stopValve(self, parent, stopped):
@@ -601,7 +609,9 @@ class PlcModel(object):
         config = self.server_mgr.get_node(parent).get_child(["0:ValveConfig", "0:GasFlow"])
         config.set_value(0, ua.VariantType.Float)
         if status_value == ua.StatusEnum.OPEN:
-            stop_valve_thread = StopValveThread(status)
+            status.set_value(2)
+            stop_valve_thread = threading.Timer(3, self._stop_valve, args=(status,))
+            # stop_valve_thread = StopValveThread(status)
             stop_valve_thread.start()
             return "The valve closes and set the gas flow rate to 0 L/m"
         return "The valve is closed."
