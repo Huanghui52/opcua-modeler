@@ -4,7 +4,6 @@ import sys
 import os
 import logging
 import time
-import faulthandler
 
 
 from PyQt5.QtCore import QTimer, QSettings, QModelIndex, Qt, QCoreApplication, QObject, pyqtSignal
@@ -19,7 +18,7 @@ from uawidgets.tree_widget import TreeWidget
 from uawidgets.refs_widget import RefsWidget
 from uawidgets.new_node_dialogs import NewNodeBaseDialog, NewUaObjectDialog, NewUaVariableDialog, NewUaMethodDialog
 from uawidgets.utils import trycatchslot
-from uawidgets.logger import QtHandler
+# from uawidgets.logger import QtHandler
 
 from uamodeler.uamodeler_ui import Ui_UaModeler
 from uamodeler.namespace_widget import NamespaceWidget
@@ -28,7 +27,17 @@ from uamodeler.model_manager import ModelManager
 from uamodeler.configure_node_dialog import ConfigureDialog, DemoSettingDialog
 
 logger = logging.getLogger(__name__)
-faulthandler.enable()
+
+
+class QtHandler(logging.Handler):
+
+    def __init__(self, modeler):
+        logging.Handler.__init__(self)
+        self.modeler = modeler
+
+    def emit(self, record):
+        msg = self.format(record)
+        self.modeler.ui.logTextEdit.append(msg)
 
 
 class BoldDelegate(QStyledItemDelegate):
@@ -597,8 +606,10 @@ class UaModeler(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     modeler = UaModeler()
-    handler = QtHandler(modeler.ui.logTextEdit)
+    handler = QtHandler(modeler)
     logging.getLogger().addHandler(handler)
+    handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    handler.setFormatter(logging.Formatter("%(name)s - %(levelname)s - %(message)s"))
     logging.getLogger("uamodeler").setLevel(logging.INFO)
     logging.getLogger("uawidgets").setLevel(logging.INFO)
     logging.getLogger("opcua.server.address_space").setLevel(logging.ERROR)
