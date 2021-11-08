@@ -4,6 +4,8 @@ import sys
 import os
 import logging
 import time
+import faulthandler
+
 
 from PyQt5.QtCore import QTimer, QSettings, QModelIndex, Qt, QCoreApplication, QObject, pyqtSignal
 from PyQt5.QtGui import QIcon, QFont
@@ -26,6 +28,7 @@ from uamodeler.model_manager import ModelManager
 from uamodeler.configure_node_dialog import ConfigureDialog, DemoSettingDialog
 
 logger = logging.getLogger(__name__)
+faulthandler.enable()
 
 
 class BoldDelegate(QStyledItemDelegate):
