@@ -5,20 +5,17 @@ import os
 import logging
 import time
 
-
 from PyQt5.QtCore import QTimer, QSettings, QModelIndex, Qt, QCoreApplication, QObject, pyqtSignal
 from PyQt5.QtGui import QIcon, QFont
 from PyQt5.QtWidgets import QMainWindow, QApplication, QFileDialog, QMessageBox, QStyledItemDelegate, QMenu, QAction
 
 from opcua import ua
-
 from uawidgets import resources
 from uawidgets.attrs_widget import AttrsWidget
 from uawidgets.tree_widget import TreeWidget
 from uawidgets.refs_widget import RefsWidget
 from uawidgets.new_node_dialogs import NewNodeBaseDialog, NewUaObjectDialog, NewUaVariableDialog, NewUaMethodDialog
 from uawidgets.utils import trycatchslot
-# from uawidgets.logger import QtHandler
 
 from uamodeler.uamodeler_ui import Ui_UaModeler
 from uamodeler.namespace_widget import NamespaceWidget
@@ -29,15 +26,17 @@ from uamodeler.configure_node_dialog import ConfigureDialog, DemoSettingDialog
 logger = logging.getLogger(__name__)
 
 
-class QtHandler(logging.Handler):
+class QtHandler(logging.Handler, QObject):
+    logChanged = pyqtSignal(str)
 
-    def __init__(self, modeler):
+    def __init__(self):
         logging.Handler.__init__(self)
-        self.modeler = modeler
+        QObject.__init__(self)
 
     def emit(self, record):
         msg = self.format(record)
-        self.modeler.ui.logTextEdit.append(msg)
+        print(msg)
+        self.logChanged.emit(msg)
 
 
 class BoldDelegate(QStyledItemDelegate):
@@ -195,6 +194,7 @@ class ModelManagerUI(QObject):
 
     error = pyqtSignal(Exception)
     titleChanged = pyqtSignal(str)
+    logChanged = pyqtSignal(str)
 
     def __init__(self, modeler):
         QObject.__init__(self)
@@ -205,6 +205,11 @@ class ModelManagerUI(QObject):
         self.settings = QSettings()
         self._last_model_dir = self.settings.value("last_model_dir", ".")
         self._copy_clipboard = None
+        # log handler
+        self.handler = QtHandler()
+        logging.getLogger().addHandler(self.handler)
+        self.handler.logChanged.connect(self.logChanged)
+        self.handler.setFormatter(logging.Formatter("%(name)s - %(levelname)s - %(message)s"))
 
     def get_current_server(self):
         return self._model_mgr.server_mgr
@@ -448,6 +453,7 @@ class UaModeler(QMainWindow):
         self.model_mgr = ModelManagerUI(self)
         self.model_mgr.error.connect(self.show_error)
         self.model_mgr.titleChanged.connect(self.update_title)
+        self.model_mgr.logChanged.connect(self.update_log)
         self.actions = ActionsManager(self, self.ui, self.model_mgr)
 
         self.setup_context_menu_tree()
@@ -553,6 +559,9 @@ class UaModeler(QMainWindow):
     def update_title(self, path):
         self.setWindowTitle("PLC Server Gui " + str(path))
 
+    def update_log(self, msg):
+        self.ui.logTextEdit.append(msg)
+
     def show_error(self, msg):
         self.ui.statusBar.show()
         self.ui.statusBar.setStyleSheet("QStatusBar { background-color : red; color : black; }")
@@ -606,10 +615,10 @@ class UaModeler(QMainWindow):
 def main():
     app = QApplication(sys.argv)
     modeler = UaModeler()
-    handler = QtHandler(modeler)
-    logging.getLogger().addHandler(handler)
-    handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
-    handler.setFormatter(logging.Formatter("%(name)s - %(levelname)s - %(message)s"))
+    # handler = QtHandler(modeler.ui.logTextEdit)
+    # logging.getLogger().addHandler(handler)
+    # handler.setFormatter(logging.Formatter("%(levelname)s: %(message)s"))
+    # handler.setFormatter(logging.Formatter("%(name)s - %(levelname)s - %(message)s"))
     logging.getLogger("uamodeler").setLevel(logging.INFO)
     logging.getLogger("uawidgets").setLevel(logging.INFO)
     logging.getLogger("opcua.server.address_space").setLevel(logging.ERROR)

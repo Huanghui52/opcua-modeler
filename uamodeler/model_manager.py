@@ -5,7 +5,6 @@ import time
 import threading
 import pandas as pd
 import ctypes
-import faulthandler
 
 from collections import OrderedDict
 from PyQt5.QtCore import pyqtSignal, QObject, QSettings, QMutex
@@ -24,7 +23,6 @@ from xml.dom.minidom import parse
 
 logger = logging.getLogger(__name__)
 demo = QMutex()
-faulthandler.enable()
 
 
 class _Struct:
